@@ -36,7 +36,6 @@ class GithubApi:
             json={"body": f"{MAGIC_COMMENT_IDENTIFIER}{comment}"},
             timeout=10,
         )
-        print(f"response from the post comment api call {r.content}")
         r.raise_for_status()
 
     def update_comment(self, comment_id: int, comment: str) -> None:
