@@ -46,7 +46,7 @@ select = [
   "COM",   # commas
   "C4",    # comprehensions
   # "C90",# mccabe; disabled in template; see to enable: https://docs.astral.sh/ruff/settings/#lintmccabe
-  "D", # pydocstyle
+  # "D", # pydocstyle
   # "DOC",  # pydoclint; unavailable without preview, but we want it when it is out of preview
   "DTZ",  # datetime
   "E",    # pycodestyle errors
