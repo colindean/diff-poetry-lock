@@ -3,6 +3,7 @@ from abc import ABC
 from typing import Any
 
 from pydantic import BaseSettings, Field, ValidationError, validator
+from pydantic.errors import PydanticValueError
 
 
 class Settings(ABC):
@@ -18,8 +19,13 @@ class Settings(ABC):
     lockfile_path: str
     api_url: str
 
+    sigil_envvar: str
+    """The envvar in this will always be present when this settings is valid."""
+
 
 class VelaSettings(BaseSettings, Settings):
+    sigil_envvar: str = "VELA_REPO_FULL_NAME"
+
     # from CI
     event_name: str = Field(env="VELA_BUILD_EVENT")  # must be 'pull_request'
     ref: str = Field(env="VELA_BUILD_REF")
@@ -34,6 +40,8 @@ class VelaSettings(BaseSettings, Settings):
 
 
 class GitHubActionsSettings(BaseSettings, Settings):
+    sigil_envvar: str = "github_repository"
+
     # from CI
     event_name: str = Field(env="github_event_name")  # must be 'pull_request'
     ref: str = Field(env="github_ref")
@@ -68,3 +76,34 @@ class GitHubActionsSettings(BaseSettings, Settings):
     def pr_num(self) -> str:  # type: ignore[override]
         # TODO: Validate early
         return self.ref.split("/")[2]
+
+
+_CI_SETTINGS_CANDIDATES: list[type[Settings]] = [GitHubActionsSettings, VelaSettings]
+
+
+class CiNotImplemented(BaseException):
+    def __init__(self) -> None:
+        sigils = [candidate.sigil_envvar for candidate in _CI_SETTINGS_CANDIDATES]
+        msg = f"Unable to determine CI environment. Your CI may be unsupported. Looked for {sigils}."
+        super().__init__(msg)
+
+
+def find_settings_for_environment() -> type[Settings] | None:
+    def valid(item: type[Settings]) -> bool:
+        # TODO: Prefer looking for environment variables, but this throws a runtime error
+        #       AttributeError: type object 'GitHubActionsSettings' has no attribute 'sigil_envvar'
+        # return if item.sigil_envvar in os.environ
+        try:
+            item()
+            return True  # noqa: TRY300
+        except PydanticValueError:
+            return False
+
+    return next((item for item in _CI_SETTINGS_CANDIDATES if valid(item)), None)
+
+
+def determine_and_load_settings() -> Settings:
+    if settings_type := find_settings_for_environment():
+        return settings_type()
+
+    raise CiNotImplemented
