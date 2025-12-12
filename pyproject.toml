@@ -39,13 +39,30 @@ plugins = ["pydantic.mypy"]
 [tool.ruff]
 select = ["ALL"]
 ignore = [
-    "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107", "D211", "D213",  # missing docstrings
-    "ANN101",  # missing type annotation for self
-    "TRY002", "TRY003", "EM101", "EM102",  # exception handling
-    "T201", # disallow print
-    "PTH123",
+  "D100",
+  "D101",
+  "D102",
+  "D103",
+  "D104",
+  "D105",
+  "D106",
+  "D107",
+  "D211",
+  "D213",   # missing docstrings
+  "ANN101", # missing type annotation for self
+  "TRY002",
+  "TRY003",
+  "EM101",
+  "EM102",  # exception handling
+  "T201",   # disallow print
+  "PTH123",
 ]
 line-length = 120
 
 [tool.ruff.per-file-ignores]
-"diff_poetry_lock/test/*" = ["S101", "PLR2004", "S105", "S106"]  # hardcoded values
+"diff_poetry_lock/test/*" = [
+  "S101",
+  "PLR2004",
+  "S105",
+  "S106",
+] # hardcoded values
