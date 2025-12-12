@@ -91,4 +91,4 @@ repos:
 
 ci:
   skip:
-    - hadolint
+    - hadolint-docker
