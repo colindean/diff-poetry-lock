@@ -40,7 +40,7 @@ def test_settings(monkeypatch: MonkeyPatch) -> None:
 
     s = GitHubActionsSettings()
 
-    assert s.pr_num() == "1"
+    assert s.pr_num == "1"
 
 
 def test_settings_not_pr(monkeypatch: MonkeyPatch) -> None:
@@ -194,7 +194,7 @@ def test_e2e_diff_inexisting_comment(cfg: Settings, data1: bytes, data2: bytes) 
         mock_get_file(m, cfg, data2, cfg.ref)
         mock_list_comments(m, cfg, [])
         m.post(
-            f"{cfg.api_url}/repos/{cfg.repository}/issues/{cfg.pr_num()}/comments",
+            f"{cfg.api_url}/repos/{cfg.repository}/issues/{cfg.pr_num}/comments",
             headers={"Authorization": f"Bearer {cfg.token}", "Accept": "application/vnd.github.raw"},
             json={"body": f"{MAGIC_COMMENT_IDENTIFIER}{summary}"},
         )
@@ -248,7 +248,7 @@ def load_file(filename: Path) -> bytes:
 
 def mock_list_comments(m: Mocker, s: Settings, response_json: list[dict[Any, Any]]) -> None:
     m.get(
-        f"{s.api_url}/repos/{s.repository}/issues/{s.pr_num()}/comments?per_page=100&page=1",
+        f"{s.api_url}/repos/{s.repository}/issues/{s.pr_num}/comments?per_page=100&page=1",
         headers={"Authorization": f"Bearer {s.token}", "Accept": "application/vnd.github.raw"},
         json=response_json,
     )
