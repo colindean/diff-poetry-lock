@@ -52,7 +52,7 @@ def test_settings_not_pr(monkeypatch: MonkeyPatch) -> None:
     with pytest.raises(SystemExit) as pytest_wrapped_e:
         main()
 
-    assert pytest_wrapped_e.type == SystemExit
+    assert pytest_wrapped_e.type is SystemExit
     assert pytest_wrapped_e.value.code == 0
 
 
