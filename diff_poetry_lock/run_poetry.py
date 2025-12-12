@@ -8,7 +8,7 @@ from poetry.core.packages.package import Package
 from poetry.packages import Locker
 
 from diff_poetry_lock.github import GithubApi
-from diff_poetry_lock.settings import GitHubActionsSettings
+from diff_poetry_lock.settings import GitHubActionsSettings, Settings
 
 
 def load_packages(filename: Path = Path("poetry.lock")) -> list[Package]:
@@ -112,7 +112,7 @@ def main() -> None:
     do_diff(settings)
 
 
-def do_diff(settings: GitHubActionsSettings) -> None:
+def do_diff(settings: Settings) -> None:
     api = GithubApi(settings)
     base_packages = load_lockfile(api, settings.base_ref)
     head_packages = load_lockfile(api, settings.ref)

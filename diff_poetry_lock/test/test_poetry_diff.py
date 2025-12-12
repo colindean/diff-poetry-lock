@@ -10,14 +10,14 @@ from requests_mock import Mocker
 
 from diff_poetry_lock.github import MAGIC_COMMENT_IDENTIFIER
 from diff_poetry_lock.run_poetry import PackageSummary, diff, do_diff, format_comment, load_packages, main
-from diff_poetry_lock.settings import GitHubActionsSettings
+from diff_poetry_lock.settings import GitHubActionsSettings, Settings
 
 TESTFILE_1 = Path("diff_poetry_lock/test/res/poetry1.lock")
 TESTFILE_2 = Path("diff_poetry_lock/test/res/poetry2.lock")
 
 
 @pytest.fixture
-def cfg() -> GitHubActionsSettings:
+def cfg() -> Settings:
     return create_settings()
 
 
@@ -129,7 +129,7 @@ def test_diff_no_changes() -> None:
     assert format_comment(summary) is None
 
 
-def test_file_loading_missing_file_base_ref(cfg: GitHubActionsSettings) -> None:
+def test_file_loading_missing_file_base_ref(cfg: Settings) -> None:
     with requests_mock.Mocker() as m:
         m.get(
             f"{cfg.api_url}/repos/{cfg.repository}/contents/{cfg.lockfile_path}?ref={cfg.base_ref}",
@@ -141,7 +141,7 @@ def test_file_loading_missing_file_base_ref(cfg: GitHubActionsSettings) -> None:
             do_diff(cfg)
 
 
-def test_file_loading_missing_file_head_ref(cfg: GitHubActionsSettings, data1: bytes) -> None:
+def test_file_loading_missing_file_head_ref(cfg: Settings, data1: bytes) -> None:
     with requests_mock.Mocker() as m:
         m.get(
             f"{cfg.api_url}/repos/{cfg.repository}/contents/{cfg.lockfile_path}?ref={cfg.base_ref}",
@@ -158,7 +158,7 @@ def test_file_loading_missing_file_head_ref(cfg: GitHubActionsSettings, data1: b
             do_diff(cfg)
 
 
-def test_e2e_no_diff_existing_comment(cfg: GitHubActionsSettings, data1: bytes) -> None:
+def test_e2e_no_diff_existing_comment(cfg: Settings, data1: bytes) -> None:
     with requests_mock.Mocker() as m:
         mock_get_file(m, cfg, data1, cfg.base_ref)
         mock_get_file(m, cfg, data1, cfg.ref)
@@ -177,7 +177,7 @@ def test_e2e_no_diff_existing_comment(cfg: GitHubActionsSettings, data1: bytes) 
         do_diff(cfg)
 
 
-def test_e2e_no_diff_inexisting_comment(cfg: GitHubActionsSettings, data1: bytes) -> None:
+def test_e2e_no_diff_inexisting_comment(cfg: Settings, data1: bytes) -> None:
     with requests_mock.Mocker() as m:
         mock_get_file(m, cfg, data1, cfg.base_ref)
         mock_get_file(m, cfg, data1, cfg.ref)
@@ -186,7 +186,7 @@ def test_e2e_no_diff_inexisting_comment(cfg: GitHubActionsSettings, data1: bytes
         do_diff(cfg)
 
 
-def test_e2e_diff_inexisting_comment(cfg: GitHubActionsSettings, data1: bytes, data2: bytes) -> None:
+def test_e2e_diff_inexisting_comment(cfg: Settings, data1: bytes, data2: bytes) -> None:
     summary = format_comment(diff(load_packages(TESTFILE_2), load_packages(TESTFILE_1)))
 
     with requests_mock.Mocker() as m:
@@ -202,7 +202,7 @@ def test_e2e_diff_inexisting_comment(cfg: GitHubActionsSettings, data1: bytes, d
         do_diff(cfg)
 
 
-def test_e2e_diff_existing_comment_same_data(cfg: GitHubActionsSettings, data1: bytes, data2: bytes) -> None:
+def test_e2e_diff_existing_comment_same_data(cfg: Settings, data1: bytes, data2: bytes) -> None:
     summary = format_comment(diff(load_packages(TESTFILE_1), load_packages(TESTFILE_2)))
 
     with requests_mock.Mocker() as m:
@@ -219,7 +219,7 @@ def test_e2e_diff_existing_comment_same_data(cfg: GitHubActionsSettings, data1: 
         do_diff(cfg)
 
 
-def test_e2e_diff_existing_comment_different_data(cfg: GitHubActionsSettings, data1: bytes, data2: bytes) -> None:
+def test_e2e_diff_existing_comment_different_data(cfg: Settings, data1: bytes, data2: bytes) -> None:
     summary = format_comment(diff(load_packages(TESTFILE_1), []))
 
     with requests_mock.Mocker() as m:
@@ -246,7 +246,7 @@ def load_file(filename: Path) -> bytes:
         return f.read()
 
 
-def mock_list_comments(m: Mocker, s: GitHubActionsSettings, response_json: list[dict[Any, Any]]) -> None:
+def mock_list_comments(m: Mocker, s: Settings, response_json: list[dict[Any, Any]]) -> None:
     m.get(
         f"{s.api_url}/repos/{s.repository}/issues/{s.pr_num()}/comments?per_page=100&page=1",
         headers={"Authorization": f"Bearer {s.token}", "Accept": "application/vnd.github.raw"},
@@ -254,7 +254,7 @@ def mock_list_comments(m: Mocker, s: GitHubActionsSettings, response_json: list[
     )
 
 
-def mock_get_file(m: Mocker, s: GitHubActionsSettings, data: bytes, ref: str) -> None:
+def mock_get_file(m: Mocker, s: Settings, data: bytes, ref: str) -> None:
     m.get(
         f"{s.api_url}/repos/{s.repository}/contents/{s.lockfile_path}?ref={ref}",
         headers={"Authorization": f"Bearer {s.token}", "Accept": "application/vnd.github.raw"},
@@ -266,7 +266,7 @@ def create_settings(
     repository: str = "user/repo",
     lockfile_path: str = "poetry.lock",
     token: str = "foobar",
-) -> GitHubActionsSettings:
+) -> Settings:
     return GitHubActionsSettings(
         event_name="pull_request",
         ref="refs/pull/1/merge",

@@ -1,10 +1,24 @@
 import sys
+from abc import ABC
 from typing import Any
 
 from pydantic import BaseSettings, Field, ValidationError, validator
 
 
-class GitHubActionsSettings(BaseSettings):
+class Settings(ABC):
+    event_name: str
+    ref: str
+    repository: str
+    token: str
+    base_ref: str
+    lockfile_path: str
+    api_url: str
+
+    def pr_num(self) -> str:
+        # TODO: Validate early
+        return self.ref.split("/")[2]
+
+class GitHubActionsSettings(BaseSettings, Settings):
     event_name: str = Field(env="github_event_name")  # must be 'pull_request'
     ref: str = Field(env="github_ref")
     repository: str = Field(env="github_repository")
@@ -30,7 +44,3 @@ class GitHubActionsSettings(BaseSettings):
             msg = "This Github Action can only be run in the context of a pull request"
             raise ValueError(msg)
         return v
-
-    def pr_num(self) -> str:
-        # TODO: Validate early
-        return self.ref.split("/")[2]
