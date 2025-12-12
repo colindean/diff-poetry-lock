@@ -33,4 +33,3 @@ jobs:
         run: poetry run mypy .
       - name: Pytest
         run: poetry run pytest .
-
