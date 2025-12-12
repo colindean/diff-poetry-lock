@@ -49,7 +49,7 @@ class GithubApi:
 
     def list_comments(self) -> list[GithubComment]:
         all_comments, comments, page = [], None, 1
-        while comments is None or len(comments) == 100:  # noqa: PLR2004
+        while comments is None or len(comments) == 100:
             r = self.session.get(
                 f"{self.s.api_url}/repos/{self.s.repository}/issues/{self.s.pr_num()}/comments",
                 params={"per_page": 100, "page": page},
@@ -70,7 +70,7 @@ class GithubApi:
             timeout=10,
             stream=True,
         )
-        if r.status_code == 404:  # noqa: PLR2004
+        if r.status_code == 404:
             raise FileNotFoundError(f"Lockfile {self.s.lockfile_path} not found on branch {ref}")
         r.raise_for_status()
         return r

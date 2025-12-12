@@ -9,17 +9,16 @@ readme = "README.md"
 diff-poetry-lock = "diff_poetry_lock.run_poetry:main"
 
 [tool.poetry.dependencies]
-python = "^3.10"
-poetry = "^1.4.0"
-requests = "^2.28.2"
+python = ">=3.10,<3.15"
+poetry = "^1"
+requests = "2.32.4"
 pydantic = "^1.10.6"
 
 [tool.poetry.dev-dependencies]
-pytest = "^7.2.2"
-black = "^23.1.0"
-ruff = "^0.0.254"
-mypy = "^1.1.1"
-types-requests = "^2.28.11.15"
+pytest = "^9"
+ruff = "*"
+mypy = "^1"
+types-requests = "^2.32.4"
 requests-mock = "^1.10.0"
 
 [build-system]
@@ -29,40 +28,73 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 pythonpath = ["."]
 
-[tool.black]
-line-length = 120
-
 [tool.mypy]
 strict = true
 plugins = ["pydantic.mypy"]
 
 [tool.ruff]
-select = ["ALL"]
-ignore = [
-  "D100",
-  "D101",
-  "D102",
-  "D103",
-  "D104",
-  "D105",
-  "D106",
-  "D107",
-  "D211",
-  "D213",   # missing docstrings
-  "ANN101", # missing type annotation for self
-  "TRY002",
-  "TRY003",
-  "EM101",
-  "EM102",  # exception handling
-  "T201",   # disallow print
-  "PTH123",
-]
 line-length = 120
+target-version = "py311"
+exclude = [".*", "dist", "__pypackages__", "build", "venv"]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint]
+select = [
+  "A",     # flake8 built-ins
+  "ANN",   # annotations
+  "ASYNC", # async
+  "B",     # bugbear
+  "COM",   # commas
+  "C4",    # comprehensions
+  # "C90",# mccabe; disabled in template; see to enable: https://docs.astral.sh/ruff/settings/#lintmccabe
+  "D", # pydocstyle
+  # "DOC",  # pydoclint; unavailable without preview, but we want it when it is out of preview
+  "DTZ",  # datetime
+  "E",    # pycodestyle errors
+  "EM",   # error messages
+  "F",    # pyflakes
+  "G",    # logging format
+  "I",    # import sorting
+  "ICN",  # import conventions
+  "LOG",  # logging
+  "N",    # pep8-naming
+  "NPY",  # numpy
+  "PD",   # pandas-vet
+  "PERF", # perflint
+  "PLC",  # pylint conventions
+  "PLE",  # pylint errors
+  "PLW",  # pylint warnings
+  "PT",   # pytest
+  "PTH",  # pathlib; enable to find and remove os.path
+  "Q",    # quotes
+  "RET",  # returns
+  "RSE",  # raise
+  "RUF",  # ruff
+  "SIM",  # simplify
+  "TID",  # tidy imports
+  "TRY",  # try
+  "UP",   # pyupgrade
+  "W",    # pycodestyle warnings
+]
+ignore = [
+  # D203: Incorrect blank link before class
+  "D203",
+  # D213: Multi-line summary second line
+  "D213",
+  # D400: First line should end with a period
+  "D400",
+  # D415: First line should end with a period, question mark, or exclamation point
+  "D415",
+  # COM812: Missing trailing commas; conflicts w/ ruff format, which handles this
+  "COM812",
+]
+
+[tool.ruff.lint.per-file-ignores]
 "diff_poetry_lock/test/*" = [
-  "S101",
-  "PLR2004",
-  "S105",
-  "S106",
+  "D", # pydocstyle, pydoclint
+  # "DOC",   # docs, requires ruff preview
+  "T201",    # no print
+  "G004",    # log format
+  "ANN001",  # argument type annotation
+  "ANN201",  # function return type annotation
+  "PLC0415", # import-outside-top-level; required in some tests
 ] # hardcoded values
