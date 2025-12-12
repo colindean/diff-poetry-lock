@@ -15,17 +15,17 @@ TESTFILE_1 = "diff_poetry_lock/test/res/poetry1.lock"
 TESTFILE_2 = "diff_poetry_lock/test/res/poetry2.lock"
 
 
-@pytest.fixture()
+@pytest.fixture
 def cfg() -> Settings:
     return create_settings()
 
 
-@pytest.fixture()
+@pytest.fixture
 def data1() -> bytes:
     return load_file(TESTFILE_1)
 
 
-@pytest.fixture()
+@pytest.fixture
 def data2() -> bytes:
     return load_file(TESTFILE_2)
 
