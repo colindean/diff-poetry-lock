@@ -46,7 +46,8 @@ class PackageSummary:
             return f"Removed **{self.name}** ({self.old_version})"
 
         if self.new_version is None:
-            raise ValueError("Inconsistent State")
+            msg = "Inconsistent State"
+            raise ValueError(msg)
 
         return f"Not changed **{self.name}** ({self.new_version})"
 
