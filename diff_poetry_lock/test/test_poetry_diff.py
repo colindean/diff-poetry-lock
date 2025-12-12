@@ -264,7 +264,7 @@ def mock_get_file(m: Mocker, s: Settings, data: bytes, ref: str) -> None:
 def create_settings(
     repository: str = "user/repo",
     lockfile_path: str = "poetry.lock",
-    token: str = "foobar",  # noqa: S107
+    token: str = "foobar",
 ) -> Settings:
     return Settings(
         event_name="pull_request",

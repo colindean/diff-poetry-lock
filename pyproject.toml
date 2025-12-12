@@ -39,62 +39,62 @@ exclude = [".*", "dist", "__pypackages__", "build", "venv"]
 
 [tool.ruff.lint]
 select = [
-    "A",     # flake8 built-ins
-    "ANN",   # annotations
-    "ASYNC", # async
-    "B",     # bugbear
-    "COM",   # commas
-    "C4",    # comprehensions
-    # "C90",# mccabe; disabled in template; see to enable: https://docs.astral.sh/ruff/settings/#lintmccabe
-    "D",    # pydocstyle
-    # "DOC",  # pydoclint; unavailable without preview, but we want it when it is out of preview
-    "DTZ",  # datetime
-    "E",    # pycodestyle errors
-    "EM",   # error messages
-    "F",    # pyflakes
-    "G",    # logging format
-    "I",    # import sorting
-    "ICN",  # import conventions
-    "LOG",  # logging
-    "N",    # pep8-naming
-    "NPY",  # numpy
-    "PD",   # pandas-vet
-    "PERF", # perflint
-    "PLC",  # pylint conventions
-    "PLE",  # pylint errors
-    "PLW",  # pylint warnings
-    "PT",   # pytest
-    "PTH", # pathlib; enable to find and remove os.path
-    "Q",   # quotes
-    "RET", # returns
-    "RSE", # raise
-    "RUF", # ruff
-    "SIM", # simplify
-    "TID", # tidy imports
-    "TRY", # try
-    "UP",  # pyupgrade
-    "W",   # pycodestyle warnings
+  "A",     # flake8 built-ins
+  "ANN",   # annotations
+  "ASYNC", # async
+  "B",     # bugbear
+  "COM",   # commas
+  "C4",    # comprehensions
+  # "C90",# mccabe; disabled in template; see to enable: https://docs.astral.sh/ruff/settings/#lintmccabe
+  "D", # pydocstyle
+  # "DOC",  # pydoclint; unavailable without preview, but we want it when it is out of preview
+  "DTZ",  # datetime
+  "E",    # pycodestyle errors
+  "EM",   # error messages
+  "F",    # pyflakes
+  "G",    # logging format
+  "I",    # import sorting
+  "ICN",  # import conventions
+  "LOG",  # logging
+  "N",    # pep8-naming
+  "NPY",  # numpy
+  "PD",   # pandas-vet
+  "PERF", # perflint
+  "PLC",  # pylint conventions
+  "PLE",  # pylint errors
+  "PLW",  # pylint warnings
+  "PT",   # pytest
+  "PTH",  # pathlib; enable to find and remove os.path
+  "Q",    # quotes
+  "RET",  # returns
+  "RSE",  # raise
+  "RUF",  # ruff
+  "SIM",  # simplify
+  "TID",  # tidy imports
+  "TRY",  # try
+  "UP",   # pyupgrade
+  "W",    # pycodestyle warnings
 ]
 ignore = [
-    # D203: Incorrect blank link before class
-    "D203",
-    # D213: Multi-line summary second line
-    "D213",
-    # D400: First line should end with a period
-    "D400",
-    # D415: First line should end with a period, question mark, or exclamation point
-    "D415",
-    # COM812: Missing trailing commas; conflicts w/ ruff format, which handles this
-    "COM812",
+  # D203: Incorrect blank link before class
+  "D203",
+  # D213: Multi-line summary second line
+  "D213",
+  # D400: First line should end with a period
+  "D400",
+  # D415: First line should end with a period, question mark, or exclamation point
+  "D415",
+  # COM812: Missing trailing commas; conflicts w/ ruff format, which handles this
+  "COM812",
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "diff_poetry_lock/test/*" = [
-    "D",       # pydocstyle, pydoclint
-    # "DOC",   # docs, requires ruff preview
-    "T201",    # no print
-    "G004",    # log format
-    "ANN001",  # argument type annotation
-    "ANN201",  # function return type annotation
-    "PLC0415", # import-outside-top-level; required in some tests
+  "D", # pydocstyle, pydoclint
+  # "DOC",   # docs, requires ruff preview
+  "T201",    # no print
+  "G004",    # log format
+  "ANN001",  # argument type annotation
+  "ANN201",  # function return type annotation
+  "PLC0415", # import-outside-top-level; required in some tests
 ] # hardcoded values
