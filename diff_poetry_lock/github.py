@@ -19,6 +19,10 @@ class GithubComment(BaseModel):
     def is_bot_comment(self) -> bool:
         return self.body.startswith(MAGIC_COMMENT_IDENTIFIER) and self.user.id_ == MAGIC_BOT_USER_ID
 
+class RepoFileRetrievalError(BaseException):
+    def __init__(self, repo: str, branch: str) -> None:
+        msg = f"Error accessing a file in repo [{repo}] on branch [{branch}]"
+        super().__init__(msg)
 
 class GithubApi:
     def __init__(self, settings: Settings) -> None:
@@ -71,7 +75,7 @@ class GithubApi:
             stream=True,
         )
         if r.status_code == 404:
-            raise FileNotFoundError(f"Lockfile {self.s.lockfile_path} not found on branch {ref}")
+            raise FileNotFoundError(self.s.lockfile_path) from RepoFileRetrievalError(self.s.repository, ref)
         r.raise_for_status()
         return r
 
