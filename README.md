@@ -17,7 +17,7 @@ Simply add the following step to your Github Action:
 ```yaml
     steps:
       - name: Diff poetry.lock
-        uses: colindean/diff-poetry-lock@main
+        uses: colindean/diff-poetry-lock@bb02f6afc981bc620fedcda2108b4fe75f5e102a # v0.0.1
 ```
 
 When the diff changes during the lifetime of a pull request,
