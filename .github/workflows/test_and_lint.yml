@@ -2,6 +2,7 @@ name: Build and Check
 on:
   pull_request:
 
+permissions: {}
 
 jobs:
   build-check:
@@ -11,14 +12,16 @@ jobs:
     steps:
       - name: Checkout
         if: '!inputs.skip-checkout'
-        uses: actions/checkout@v3
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
       - name: Setup python
         id: setup-python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
         with:
           python-version: '3.11'
       - name: Install and configure Poetry
-        uses: snok/install-poetry@v1
+        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
         with:
           version: '1.4.0'
           virtualenvs-create: true
