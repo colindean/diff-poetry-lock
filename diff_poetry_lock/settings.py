@@ -24,7 +24,8 @@ class Settings(BaseSettings):
             raise
 
     @validator("event_name")
-    def event_must_be_pull_request(cls, v: str) -> str:  # noqa: N805
+    @classmethod
+    def event_must_be_pull_request(cls, v: str) -> str:
         if v != "pull_request":
             msg = "This Github Action can only be run in the context of a pull request"
             raise ValueError(msg)
