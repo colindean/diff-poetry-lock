@@ -1,0 +1,90 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+  -   repo: https://github.com/pre-commit/pre-commit-hooks
+      rev: v5.0.0
+      hooks:
+        - id: trailing-whitespace
+        - id: end-of-file-fixer
+        - id: check-yaml
+        - id: check-json
+        - id: check-added-large-files
+        - id: check-case-conflict
+        - id: check-executables-have-shebangs
+        - id: check-shebang-scripts-are-executable
+        - id: check-symlinks
+        - id: check-merge-conflict
+        - id: destroyed-symlinks
+
+  # strips outputs from notebook files to reduce churn and minimize repo size
+  - repo: https://github.com/kynan/nbstripout
+    rev: "0.8.1"
+    hooks:
+      - id: nbstripout
+
+  # Prevent old Pythonisms
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.20.0
+    hooks:
+      - id: pyupgrade
+
+  # validate Makefile
+  - repo: https://github.com/checkmake/checkmake.git
+    rev: "0.2.2"
+    hooks:
+      - id: checkmake
+
+    # type hint checking
+    # TODO: Reenable ASAP to allow type checking to run
+    #  - repo: local
+    #    hooks:
+    #    - id: mypy
+    #      name: make check-py-mypy
+    #      entry: "make check-py-mypy"
+    #      language: system
+    #      'types_or': [python, pyi]
+    #      pass_filenames: false
+    #      verbose: false
+
+    # Run linting checks on shell scripts
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        name: shellcheck
+
+  # Run linting checks on dockerfiles
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.13.1-beta
+    hooks:
+      - id: hadolint-docker # Requires docker cli and colima to be started. Run with `SKIP=hadolint-docker` env var set to skip.
+        name: hadolint
+        types: [text]
+        files: (Dockerfile|\.dockerfile$)
+
+  # Ensure ruff linter and formatter is run on everything
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.8
+    hooks:
+      - id: ruff
+        args: [--fix]
+        types_or: [python, pyi, jupyter]
+      - id: ruff-format
+        types_or: [python, pyi, jupyter]
+
+  # TOML conformance
+  - repo: https://github.com/ComPWA/taplo-pre-commit
+    rev: v0.9.3
+    hooks:
+      - id: taplo-format
+      - id: taplo-lint
+        args: [] # because I don't want to force people to set TAPLO_EXTRA_CA_CERTS
+
+# TODO: reenable after getting the repo onto Poetry 2
+    # Check to ensure poetry things are valid
+#  - repo: https://github.com/python-poetry/poetry
+#    rev: "2.1.4"
+#    hooks:
+#      - id: poetry-check
+#      - id: poetry-lock
+#        additional_dependencies: [pkginfo>=1.11.1] # Required so poetry pulls transitive dependencies
