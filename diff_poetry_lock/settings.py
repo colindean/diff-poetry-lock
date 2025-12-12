@@ -4,7 +4,7 @@ from typing import Any
 from pydantic import BaseSettings, Field, ValidationError, validator
 
 
-class Settings(BaseSettings):
+class GitHubActionsSettings(BaseSettings):
     event_name: str = Field(env="github_event_name")  # must be 'pull_request'
     ref: str = Field(env="github_ref")
     repository: str = Field(env="github_repository")
