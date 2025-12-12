@@ -1,4 +1,5 @@
 from operator import attrgetter
+from pathlib import Path
 from textwrap import dedent
 from typing import Any
 
@@ -11,8 +12,8 @@ from diff_poetry_lock.github import MAGIC_COMMENT_IDENTIFIER
 from diff_poetry_lock.run_poetry import PackageSummary, diff, do_diff, format_comment, load_packages, main
 from diff_poetry_lock.settings import Settings
 
-TESTFILE_1 = "diff_poetry_lock/test/res/poetry1.lock"
-TESTFILE_2 = "diff_poetry_lock/test/res/poetry2.lock"
+TESTFILE_1 = Path("diff_poetry_lock/test/res/poetry1.lock")
+TESTFILE_2 = Path("diff_poetry_lock/test/res/poetry2.lock")
 
 
 @pytest.fixture
@@ -51,7 +52,7 @@ def test_settings_not_pr(monkeypatch: MonkeyPatch) -> None:
     with pytest.raises(SystemExit) as pytest_wrapped_e:
         main()
 
-    assert pytest_wrapped_e.type == SystemExit
+    assert pytest_wrapped_e.type is SystemExit
     assert pytest_wrapped_e.value.code == 0
 
 
@@ -240,8 +241,8 @@ def test_e2e_diff_existing_comment_different_data(cfg: Settings, data1: bytes, d
         do_diff(cfg)
 
 
-def load_file(filename: str) -> bytes:
-    with open(filename, "rb") as f:
+def load_file(filename: Path) -> bytes:
+    with filename.open("rb") as f:
         return f.read()
 
 
