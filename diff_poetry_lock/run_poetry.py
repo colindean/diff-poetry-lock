@@ -11,7 +11,7 @@ from diff_poetry_lock.github import GithubApi
 from diff_poetry_lock.settings import Settings
 
 
-def load_packages(filename: str = "poetry.lock") -> list[Package]:
+def load_packages(filename: Path = Path("poetry.lock")) -> list[Package]:
     l_merged = Locker(Path(filename), local_config={})
     return l_merged.locked_repository().packages
 
@@ -103,7 +103,7 @@ def load_lockfile(api: GithubApi, ref: str) -> list[Package]:
             f.write(chunk)
         f.flush()
 
-        return load_packages(f.name)
+        return load_packages(Path(f.name))
 
 
 def main() -> None:
