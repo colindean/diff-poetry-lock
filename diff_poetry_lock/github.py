@@ -19,10 +19,12 @@ class GithubComment(BaseModel):
     def is_bot_comment(self) -> bool:
         return self.body.startswith(MAGIC_COMMENT_IDENTIFIER) and self.user.id_ == MAGIC_BOT_USER_ID
 
+
 class RepoFileRetrievalError(BaseException):
     def __init__(self, repo: str, branch: str) -> None:
         msg = f"Error accessing a file in repo [{repo}] on branch [{branch}]"
         super().__init__(msg)
+
 
 class GithubApi:
     def __init__(self, settings: Settings) -> None:
