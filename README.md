@@ -1,5 +1,13 @@
 # Diff poetry.lock with diff-poetry-lock in CI
 
+![GitHub Release](https://img.shields.io/github/v/release/colindean/diff-poetry-lock)
+![GitHub Release Date](https://img.shields.io/github/release-date/colindean/diff-poetry-lock)
+![GitHub commits since latest release](https://img.shields.io/github/commits-since/colindean/diff-poetry-lock/latest)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/y/colindean/diff-poetry-lock)
+
+![GitHub License](https://img.shields.io/github/license/colindean/diff-poetry-lock)
+![GitHub contributors](https://img.shields.io/github/contributors-anon/colindean/diff-poetry-lock)
+
 Poetry's TOML lockfiles are very verbose and difficult to review quickly.
 This friction complicates the responsible acceptance of pull requests that change dependencies.
 `diff-poetry-lock` aims to solve this problem by posting a readable summary of all lockfile changes to pull requests.
@@ -17,7 +25,7 @@ Simply add the following step to your Github Action:
 ```yaml
     steps:
       - name: Diff poetry.lock
-        uses: colindean/diff-poetry-lock@bb02f6afc981bc620fedcda2108b4fe75f5e102a # v0.0.1
+        uses: colindean/diff-poetry-lock@30a153ca2d5cbdd209fc78b0ec013915748b6bab # v0.0.2
 ```
 
 When the diff changes during the lifetime of a pull request,
