@@ -10,7 +10,7 @@ This friction complicates the responsible acceptance of pull requests that chang
 
 ## Usage
 
-### GitHub Actions
+### [GitHub Actions](https://docs.github.com/en/actions) action
 
 Simply add the following step to your Github Action:
 
@@ -23,6 +23,10 @@ Simply add the following step to your Github Action:
 When the diff changes during the lifetime of a pull request,
 the original comment will be updated.
 If all changes are rolled back, the comment will be deleted.
+
+### [Vela CI](https://go-vela.github.io/docs/usage/plugins) plugin
+
+_Coming soon_
 
 ## History
 
