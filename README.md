@@ -1,12 +1,14 @@
 # Diff poetry.lock with diff-poetry-lock in CI
 
-![GitHub Release](https://img.shields.io/github/v/release/colindean/diff-poetry-lock)
-![GitHub Release Date](https://img.shields.io/github/release-date/colindean/diff-poetry-lock)
-![GitHub commits since latest release](https://img.shields.io/github/commits-since/colindean/diff-poetry-lock/latest)
-![GitHub commit activity](https://img.shields.io/github/commit-activity/y/colindean/diff-poetry-lock)
+[![GitHub Release](https://img.shields.io/github/v/release/colindean/diff-poetry-lock)](https://github.com/colindean/diff-poetry-lock/releases/latest "Latest release notes")
+[![GitHub Release Date](https://img.shields.io/github/release-date/colindean/diff-poetry-lock)](https://github.com/colindean/diff-poetry-lock/releases/latest "Latest release notes")
+[![GitHub commits since latest release](https://img.shields.io/github/commits-since/colindean/diff-poetry-lock/latest)](https://github.com/colindean/diff-poetry-lock/releases/latest "Latest release notes")
 
-![GitHub License](https://img.shields.io/github/license/colindean/diff-poetry-lock)
-![GitHub contributors](https://img.shields.io/github/contributors-anon/colindean/diff-poetry-lock)
+[![GitHub License](https://img.shields.io/github/license/colindean/diff-poetry-lock)](https://github.com/colindean/diff-poetry-lock/blob/main/LICENSE "LICENSE file")
+[![Contributors are expected to signoff using Developer Certificate of Origin, --sign-off when committing](https://img.shields.io/badge/contributor_requirement-Developer_Certificate_of_Origin-blue)](https://developercertificate.org/ "DCO website")
+[![GitHub contributors](https://img.shields.io/github/contributors-anon/colindean/diff-poetry-lock)](https://github.com/colindean/diff-poetry-lock/graphs/contributors "Contributor list")
+[![GitHub commit activity](https://img.shields.io/github/commit-activity/y/colindean/diff-poetry-lock)](https://github.com/colindean/diff-poetry-lock/pulse "Repo analytics")
+
 
 Poetry's TOML lockfiles are very verbose and difficult to review quickly.
 This friction complicates the responsible acceptance of pull requests that change dependencies.
