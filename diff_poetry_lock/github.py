@@ -37,7 +37,7 @@ class GithubApi:
             return
 
         r = self.session.post(
-            f"{self.s.api_url}/repos/{self.s.repository}/issues/{self.s.pr_num()}/comments",
+            f"{self.s.api_url}/repos/{self.s.repository}/issues/{self.s.pr_num}/comments",
             headers={"Authorization": f"Bearer {self.s.token}", "Accept": "application/vnd.github+json"},
             json={"body": f"{MAGIC_COMMENT_IDENTIFIER}{comment}"},
             timeout=10,
@@ -57,7 +57,7 @@ class GithubApi:
         all_comments, comments, page = [], None, 1
         while comments is None or len(comments) == 100:
             r = self.session.get(
-                f"{self.s.api_url}/repos/{self.s.repository}/issues/{self.s.pr_num()}/comments",
+                f"{self.s.api_url}/repos/{self.s.repository}/issues/{self.s.pr_num}/comments",
                 params={"per_page": 100, "page": page},
                 headers={"Authorization": f"Bearer {self.s.token}", "Accept": "application/vnd.github+json"},
                 timeout=10,

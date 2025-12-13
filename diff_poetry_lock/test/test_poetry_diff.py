@@ -10,7 +10,7 @@ from requests_mock import Mocker
 
 from diff_poetry_lock.github import MAGIC_COMMENT_IDENTIFIER
 from diff_poetry_lock.run_poetry import PackageSummary, diff, do_diff, format_comment, load_packages, main
-from diff_poetry_lock.settings import Settings
+from diff_poetry_lock.settings import GitHubActionsSettings, Settings
 
 TESTFILE_1 = Path("diff_poetry_lock/test/res/poetry1.lock")
 TESTFILE_2 = Path("diff_poetry_lock/test/res/poetry2.lock")
@@ -38,9 +38,9 @@ def test_settings(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("INPUT_GITHUB_TOKEN", "foobar")
     monkeypatch.setenv("GITHUB_BASE_REF", "main")
 
-    s = Settings()
+    s = GitHubActionsSettings()
 
-    assert s.pr_num() == "1"
+    assert s.pr_num == "1"
 
 
 def test_settings_not_pr(monkeypatch: MonkeyPatch) -> None:
@@ -194,7 +194,7 @@ def test_e2e_diff_inexisting_comment(cfg: Settings, data1: bytes, data2: bytes) 
         mock_get_file(m, cfg, data2, cfg.ref)
         mock_list_comments(m, cfg, [])
         m.post(
-            f"{cfg.api_url}/repos/{cfg.repository}/issues/{cfg.pr_num()}/comments",
+            f"{cfg.api_url}/repos/{cfg.repository}/issues/{cfg.pr_num}/comments",
             headers={"Authorization": f"Bearer {cfg.token}", "Accept": "application/vnd.github.raw"},
             json={"body": f"{MAGIC_COMMENT_IDENTIFIER}{summary}"},
         )
@@ -248,7 +248,7 @@ def load_file(filename: Path) -> bytes:
 
 def mock_list_comments(m: Mocker, s: Settings, response_json: list[dict[Any, Any]]) -> None:
     m.get(
-        f"{s.api_url}/repos/{s.repository}/issues/{s.pr_num()}/comments?per_page=100&page=1",
+        f"{s.api_url}/repos/{s.repository}/issues/{s.pr_num}/comments?per_page=100&page=1",
         headers={"Authorization": f"Bearer {s.token}", "Accept": "application/vnd.github.raw"},
         json=response_json,
     )
@@ -267,7 +267,7 @@ def create_settings(
     lockfile_path: str = "poetry.lock",
     token: str = "foobar",
 ) -> Settings:
-    return Settings(
+    return GitHubActionsSettings(
         event_name="pull_request",
         ref="refs/pull/1/merge",
         repository=repository,
