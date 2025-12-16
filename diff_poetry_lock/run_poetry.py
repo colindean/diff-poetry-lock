@@ -114,26 +114,13 @@ def main() -> None:
 
 def do_diff(settings: Settings) -> None:
     api = GithubApi(settings)
-    
+
     print(f"[DEBUG do_diff] Starting diff with base_ref={settings.base_ref}, ref={settings.ref}")
-    print(f"[DEBUG do_diff] Initial pr_num: '{settings.pr_num}'")
-    
-    # If pr_num is empty, try to find it
-    if not settings.pr_num:
-        print("[DEBUG do_diff] PR number not set, attempting to find PR for branch...")
-        settings.pr_num = api.find_pr_for_branch(settings.ref)
-        if settings.pr_num:
-            print(f"[DEBUG do_diff] Found PR #{settings.pr_num} for branch {settings.ref}")
-        else:
-            print(f"[DEBUG do_diff] No open PR found for branch {settings.ref} - will show diff in logs only")
-            # Continue with diff but skip posting comment
-    else:
-        print(f"[DEBUG do_diff] Using provided PR #{settings.pr_num}")
-    
+
     print("[DEBUG do_diff] Loading base lockfile...")
     base_packages = load_lockfile(api, settings.base_ref)
     print(f"[DEBUG do_diff] Loaded {len(base_packages)} base packages")
-    
+
     print("[DEBUG do_diff] Loading head lockfile...")
     head_packages = load_lockfile(api, settings.ref)
     print(f"[DEBUG do_diff] Loaded {len(head_packages)} head packages")
@@ -141,20 +128,21 @@ def do_diff(settings: Settings) -> None:
     print("[DEBUG do_diff] Computing diff...")
     packages = diff(base_packages, head_packages)
     summary = format_comment(packages)
-    
+
     if summary:
         print(f"[DEBUG do_diff] Generated summary with {len(summary)} characters")
         print("=== DIFF SUMMARY ===")
         print(summary)
         print("====================")
+        # Access pr_num property (triggers lazy lookup for VelaSettings)
+        pr_number = settings.pr_num
+        if pr_number:
+            print(f"[DEBUG do_diff] Posting comment to PR #{pr_number}")
+            post_comment(api, summary)
+        else:
+            print("[DEBUG do_diff] Skipping comment post (no PR number available)")
     else:
         print("[DEBUG do_diff] No changes detected")
-    
-    if settings.pr_num:
-        print(f"[DEBUG do_diff] Posting comment to PR #{settings.pr_num}")
-        post_comment(api, summary)
-    else:
-        print("[DEBUG do_diff] Skipping comment post (no PR number available)")
 
 
 if __name__ == "__main__":
