@@ -27,16 +27,27 @@ class VelaSettings(BaseSettings, Settings):
     sigil_envvar: str = "VELA_REPO_FULL_NAME"
 
     # from CI
-    event_name: str = Field(env="VELA_BUILD_EVENT")  # must be 'pull_request'
+    event_name: str = Field(env="VELA_BUILD_EVENT")
     ref: str = Field(env="VELA_BUILD_REF")
     repository: str = Field(env="VELA_REPO_FULL_NAME")
-    base_ref: str = Field(env="VELA_BUILD_BASE_REF")
-    pr_num: str = Field(env="VELA_BUILD_PULL_REQUEST")
+    base_ref: str = ""  # Calculated from VELA_REPO_BRANCH
+    pr_num: str = ""  # Calculated by GithubApi.find_pr_for_branch
+    
+    # Helper field for calculation
+    repo_branch: str = Field(env="VELA_REPO_BRANCH")
 
     # from step config including secrets
     token: str = Field(env="PARAMETER_GITHUB_TOKEN")
     lockfile_path: str = Field(env="PARAMETER_LOCKFILE_PATH", default="poetry.lock")
     api_url: str = Field(env="PARAMETER_GITHUB_API_URL", default="https://api.github.com")
+    
+    def __init__(self, **values: Any) -> None:  # noqa: ANN401
+        super().__init__(**values)
+        # Calculate base_ref from repo_branch
+        self.base_ref = f"refs/heads/{self.repo_branch}"
+        print(f"[DEBUG VelaSettings] Calculated base_ref: {self.base_ref} from repo_branch: {self.repo_branch}")
+        print(f"[DEBUG VelaSettings] ref: {self.ref}")
+        print(f"[DEBUG VelaSettings] event_name: {self.event_name}")
 
 
 class GitHubActionsSettings(BaseSettings, Settings):
