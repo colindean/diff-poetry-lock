@@ -30,8 +30,8 @@ class VelaSettings(BaseSettings, Settings):
     event_name: str = Field(env="VELA_BUILD_EVENT")
     ref: str = Field(env="VELA_BUILD_REF")
     repository: str = Field(env="VELA_REPO_FULL_NAME")
-    base_ref: str = Field(default="")  # Calculated from VELA_REPO_BRANCH in __init__
-    pr_num: str = Field(default="")  # Calculated by GithubApi.find_pr_for_branch
+    base_ref: str = Field(default="", env=None)  # Calculated from VELA_REPO_BRANCH in __init__
+    pr_num: str = Field(default="", env=None)  # Calculated by GithubApi.find_pr_for_branch
     
     # Helper field for calculation
     repo_branch: str = Field(env="VELA_REPO_BRANCH")
