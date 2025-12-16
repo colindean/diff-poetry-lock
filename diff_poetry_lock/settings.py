@@ -31,7 +31,6 @@ class VelaSettings(BaseSettings, Settings):
     ref: str = Field(env="VELA_BUILD_REF")
     repository: str = Field(env="VELA_REPO_FULL_NAME")
     base_ref: str = Field(default="", env=None)  # Calculated from VELA_REPO_BRANCH in __init__
-    pr_num: str = Field(default="", env=None)  # Calculated by GithubApi.find_pr_for_branch
 
     # Helper field for calculation
     repo_branch: str = Field(env="VELA_REPO_BRANCH")
@@ -45,9 +44,27 @@ class VelaSettings(BaseSettings, Settings):
         super().__init__(**values)
         # Calculate base_ref from repo_branch
         self.base_ref = f"refs/heads/{self.repo_branch}"
+        object.__setattr__(self, "_pr_num_cached", "")  # Initialize cache bypassing Pydantic
         print(f"[DEBUG VelaSettings] Calculated base_ref: {self.base_ref} from repo_branch: {self.repo_branch}")
         print(f"[DEBUG VelaSettings] ref: {self.ref}")
         print(f"[DEBUG VelaSettings] event_name: {self.event_name}")
+    
+    def __getattribute__(self, name: str) -> Any:
+        """Override to provide lazy pr_num lookup."""
+        if name == "pr_num":
+            cached = object.__getattribute__(self, "_pr_num_cached")
+            if not cached:
+                from diff_poetry_lock.github import GithubApi
+                print(f"[DEBUG VelaSettings.pr_num] Looking up PR for branch: {self.ref}")
+                api = GithubApi(self)
+                cached = api.find_pr_for_branch(self.ref)
+                object.__setattr__(self, "_pr_num_cached", cached)
+                if cached:
+                    print(f"[DEBUG VelaSettings.pr_num] Found PR #{cached}")
+                else:
+                    print("[DEBUG VelaSettings.pr_num] No open PR found")
+            return cached
+        return object.__getattribute__(self, name)
 
 
 class GitHubActionsSettings(BaseSettings, Settings):
