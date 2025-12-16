@@ -32,7 +32,7 @@ class VelaSettings(BaseSettings, Settings):
     repository: str = Field(env="VELA_REPO_FULL_NAME")
     base_ref: str = Field(default="", env=None)  # Calculated from VELA_REPO_BRANCH in __init__
     pr_num: str = Field(default="", env=None)  # Calculated by GithubApi.find_pr_for_branch
-    
+
     # Helper field for calculation
     repo_branch: str = Field(env="VELA_REPO_BRANCH")
 
@@ -40,7 +40,7 @@ class VelaSettings(BaseSettings, Settings):
     token: str = Field(env="PARAMETER_GITHUB_TOKEN")
     lockfile_path: str = Field(env="PARAMETER_LOCKFILE_PATH", default="poetry.lock")
     api_url: str = Field(env="PARAMETER_GITHUB_API_URL", default="https://api.github.com")
-    
+
     def __init__(self, **values: Any) -> None:  # noqa: ANN401
         super().__init__(**values)
         # Calculate base_ref from repo_branch
@@ -89,7 +89,7 @@ class GitHubActionsSettings(BaseSettings, Settings):
         return self.ref.split("/")[2]
 
 
-_CI_SETTINGS_CANDIDATES: list[type[Settings]] = [GitHubActionsSettings, VelaSettings]
+_CI_SETTINGS_CANDIDATES: list[type[Settings]] = [VelaSettings, GitHubActionsSettings]
 
 
 class CiNotImplemented(BaseException):
@@ -100,10 +100,24 @@ class CiNotImplemented(BaseException):
 
 
 def find_settings_for_environment() -> type[Settings] | None:
+    import os
+
+    # Map of settings class names to their sigil environment variables
+    SIGILS = {
+        'GitHubActionsSettings': 'github_repository',
+        'VelaSettings': 'VELA_REPO_FULL_NAME',
+    }
+
     def valid(item: type[Settings]) -> bool:
-        # TODO: Prefer looking for environment variables, but this throws a runtime error
-        #       AttributeError: type object 'GitHubActionsSettings' has no attribute 'sigil_envvar'
-        # return if item.sigil_envvar in os.environ
+        # First check if the sigil environment variable is present
+        # This avoids unnecessary instantiation attempts that may print errors
+        class_name = item.__name__
+        if class_name in SIGILS:
+            sigil_var = SIGILS[class_name]
+            if sigil_var not in os.environ:
+                # Sigil not present, skip this settings class
+                return False
+
         try:
             item()
             return True  # noqa: TRY300
@@ -115,6 +129,13 @@ def find_settings_for_environment() -> type[Settings] | None:
 
 def determine_and_load_settings() -> Settings:
     if settings_type := find_settings_for_environment():
-        return settings_type()
+        try:
+            return settings_type()
+        except Exception as e:
+            print(f"[DEBUG] Error loading settings: {e}")
+            print(f"[DEBUG] Settings type: {settings_type}")
+            import traceback
+            traceback.print_exc()
+            raise
 
     raise CiNotImplemented
