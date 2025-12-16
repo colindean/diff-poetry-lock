@@ -99,6 +99,43 @@ class GithubApi:
         )
         r.raise_for_status()
 
+    def find_pr_for_branch(self, branch_ref: str) -> str:
+        """Find open PR number for a given branch ref (e.g., 'refs/heads/deps-update').
+        Returns PR number as string, or empty string if not found."""
+        # Extract branch name from ref
+        branch = branch_ref.replace("refs/heads/", "")
+        print(f"[DEBUG find_pr_for_branch] Looking for PR with head branch: {branch}")
+        
+        # Get organization from repository (owner/repo)
+        org = self.s.repository.split("/")[0]
+        head = f"{org}:{branch}"
+        
+        # Query GitHub API for open PRs with this head branch
+        url = f"{self.s.api_url}/repos/{self.s.repository}/pulls"
+        params = {"head": head, "state": "open"}
+        print(f"[DEBUG find_pr_for_branch] API URL: {url}")
+        print(f"[DEBUG find_pr_for_branch] Params: {params}")
+        
+        r = self.session.get(
+            url,
+            params=params,
+            headers={"Authorization": f"Bearer {self.s.token}", "Accept": "application/vnd.github+json"},
+            timeout=10,
+        )
+        print(f"[DEBUG find_pr_for_branch] Response status: {r.status_code}")
+        r.raise_for_status()
+        
+        pulls = r.json()
+        print(f"[DEBUG find_pr_for_branch] Found {len(pulls)} open PR(s)")
+        
+        if pulls and len(pulls) > 0:
+            pr_num = str(pulls[0]["number"])
+            print(f"[DEBUG find_pr_for_branch] Using PR #{pr_num}")
+            return pr_num
+        
+        print("[DEBUG find_pr_for_branch] No open PR found")
+        return ""
+
     def upsert_comment(self, existing_comment: GithubComment | None, comment: str | None) -> None:
         if existing_comment is None and comment is None:
             return
