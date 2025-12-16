@@ -36,13 +36,24 @@ class GithubApi:
             print("No changes to lockfile detected")
             return
 
+        url = f"{self.s.api_url}/repos/{self.s.repository}/issues/{self.s.pr_num}/comments"
+        print(f"[DEBUG] Posting comment to: {url}")
+        print(f"[DEBUG] PR number: {self.s.pr_num}")
+        print(f"[DEBUG] Repository: {self.s.repository}")
+        print(f"[DEBUG] API URL: {self.s.api_url}")
+        print(f"[DEBUG] Token present: {'Yes' if self.s.token else 'No'}")
+        print(f"[DEBUG] Comment length: {len(comment)} chars")
+        
         r = self.session.post(
-            f"{self.s.api_url}/repos/{self.s.repository}/issues/{self.s.pr_num}/comments",
+            url,
             headers={"Authorization": f"Bearer {self.s.token}", "Accept": "application/vnd.github+json"},
             json={"body": f"{MAGIC_COMMENT_IDENTIFIER}{comment}"},
             timeout=10,
         )
+        print(f"[DEBUG] Response status code: {r.status_code}")
+        print(f"[DEBUG] Response text: {r.text[:200]}")
         r.raise_for_status()
+        print("[DEBUG] Comment posted successfully")
 
     def update_comment(self, comment_id: int, comment: str) -> None:
         r = self.session.patch(
