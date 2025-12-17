@@ -1,5 +1,5 @@
 import sys
-from abc import ABC
+from abc import ABC, abstractmethod
 from typing import Any
 
 from pydantic import BaseSettings, Field, PrivateAttr, ValidationError, validator
@@ -12,7 +12,6 @@ class Settings(ABC):
     ref: str
     repository: str
     base_ref: str
-    pr_num: str | None
 
     # from step config including secrets
     token: str
@@ -21,6 +20,11 @@ class Settings(ABC):
 
     sigil_envvar: str
     """The envvar in this will always be present when this settings is valid."""
+
+    @property
+    @abstractmethod
+    def pr_num(self) -> str | None:
+        """Return PR number if one exists."""
 
 
 _PR_NUM_UNSET = object()
@@ -54,7 +58,7 @@ class VelaSettings(BaseSettings, Settings):
         print(f"[DEBUG VelaSettings] event_name: {self.event_name}")
 
     @property
-    def pr_num(self) -> str | None:  # type: ignore[override]
+    def pr_num(self) -> str | None:
         """Lazy PR lookup with cached result."""
         if self._pr_num_cached is _PR_NUM_UNSET:
             from diff_poetry_lock.github import GithubApi
@@ -109,7 +113,7 @@ class GitHubActionsSettings(BaseSettings, Settings):
 
     @property
     # todo: Avoid this MyPy error by having Pydantic compute the field
-    def pr_num(self) -> str:  # type: ignore[override]
+    def pr_num(self) -> str:
         # TODO: Validate early
         return self.ref.split("/")[2]
 
