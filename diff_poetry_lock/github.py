@@ -36,6 +36,10 @@ class GithubApi:
             print("No changes to lockfile detected")
             return
 
+        if not self.s.pr_num:
+            print("[DEBUG] No PR number available; skipping comment post")
+            return
+
         url = f"{self.s.api_url}/repos/{self.s.repository}/issues/{self.s.pr_num}/comments"
         print(f"[DEBUG] Posting comment to: {url}")
         print(f"[DEBUG] PR number: {self.s.pr_num}")
@@ -65,6 +69,10 @@ class GithubApi:
         r.raise_for_status()
 
     def list_comments(self) -> list[GithubComment]:
+        if not self.s.pr_num:
+            print("[DEBUG] No PR number available; returning empty comment list")
+            return []
+
         all_comments, comments, page = [], None, 1
         while comments is None or len(comments) == 100:
             r = self.session.get(
