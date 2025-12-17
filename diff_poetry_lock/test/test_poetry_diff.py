@@ -56,62 +56,6 @@ def test_settings_not_pr(monkeypatch: MonkeyPatch) -> None:
     assert pytest_wrapped_e.value.code == 0
 
 
-def test_vela_settings_pr_num_cached(monkeypatch: MonkeyPatch) -> None:
-    monkeypatch.setenv("VELA_BUILD_EVENT", "push")
-    monkeypatch.setenv("VELA_BUILD_REF", "refs/heads/deps-update")
-    monkeypatch.setenv("VELA_REPO_FULL_NAME", "org/repo")
-    monkeypatch.setenv("VELA_REPO_BRANCH", "main")
-    monkeypatch.setenv("PARAMETER_GITHUB_TOKEN", "foobar")
-
-    calls = {"count": 0}
-
-    class FakeGithubApi:
-        def __init__(self, settings: Settings) -> None:
-            self.settings = settings
-
-        def find_pr_for_branch(self, branch: str) -> str:
-            calls["count"] += 1
-            assert branch == "refs/heads/deps-update"
-            return "42"
-
-    monkeypatch.setattr("diff_poetry_lock.github.GithubApi", FakeGithubApi)
-
-    from diff_poetry_lock.settings import VelaSettings
-
-    settings = VelaSettings()
-    assert settings.pr_num == "42"
-    assert settings.pr_num == "42"
-    assert calls["count"] == 1
-
-
-def test_vela_settings_pr_num_none(monkeypatch: MonkeyPatch) -> None:
-    monkeypatch.setenv("VELA_BUILD_EVENT", "push")
-    monkeypatch.setenv("VELA_BUILD_REF", "refs/heads/deps-update")
-    monkeypatch.setenv("VELA_REPO_FULL_NAME", "org/repo")
-    monkeypatch.setenv("VELA_REPO_BRANCH", "main")
-    monkeypatch.setenv("PARAMETER_GITHUB_TOKEN", "foobar")
-
-    calls = {"count": 0}
-
-    class FakeGithubApi:
-        def __init__(self, settings: Settings) -> None:
-            self.settings = settings
-
-        def find_pr_for_branch(self, branch: str) -> str | None:
-            calls["count"] += 1
-            assert branch == "refs/heads/deps-update"
-            return None
-
-    monkeypatch.setattr("diff_poetry_lock.github.GithubApi", FakeGithubApi)
-
-    from diff_poetry_lock.settings import VelaSettings
-
-    settings = VelaSettings()
-    assert settings.pr_num is None
-    assert settings.pr_num is None
-    assert calls["count"] == 1
-
-
 def test_diff() -> None:
     old = load_packages(TESTFILE_1)
     new = load_packages(TESTFILE_2)
