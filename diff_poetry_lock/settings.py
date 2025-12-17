@@ -2,7 +2,7 @@ import sys
 from abc import ABC
 from typing import Any
 
-from pydantic import BaseSettings, Field, ValidationError, validator
+from pydantic import BaseSettings, Field, PrivateAttr, ValidationError, validator
 from pydantic.errors import PydanticValueError
 
 
@@ -12,7 +12,7 @@ class Settings(ABC):
     ref: str
     repository: str
     base_ref: str
-    pr_num: str
+    pr_num: str | None
 
     # from step config including secrets
     token: str
@@ -23,8 +23,13 @@ class Settings(ABC):
     """The envvar in this will always be present when this settings is valid."""
 
 
+_PR_NUM_UNSET = object()
+# Sentinel so we can distinguish "not looked up yet" from "looked up but no PR found".
+
+
 class VelaSettings(BaseSettings, Settings):
     sigil_envvar: str = "VELA_REPO_FULL_NAME"
+    _pr_num_cached: str | None | object = PrivateAttr(default=_PR_NUM_UNSET)
 
     # from CI
     event_name: str = Field(env="VELA_BUILD_EVENT")
@@ -44,27 +49,30 @@ class VelaSettings(BaseSettings, Settings):
         super().__init__(**values)
         # Calculate base_ref from repo_branch
         self.base_ref = f"refs/heads/{self.repo_branch}"
-        object.__setattr__(self, "_pr_num_cached", "")  # Initialize cache bypassing Pydantic
         print(f"[DEBUG VelaSettings] Calculated base_ref: {self.base_ref} from repo_branch: {self.repo_branch}")
         print(f"[DEBUG VelaSettings] ref: {self.ref}")
         print(f"[DEBUG VelaSettings] event_name: {self.event_name}")
-    
-    def __getattribute__(self, name: str) -> Any:
-        """Override to provide lazy pr_num lookup."""
-        if name == "pr_num":
-            cached = object.__getattribute__(self, "_pr_num_cached")
-            if not cached:
-                from diff_poetry_lock.github import GithubApi
-                print(f"[DEBUG VelaSettings.pr_num] Looking up PR for branch: {self.ref}")
+
+    @property
+    def pr_num(self) -> str | None:  # type: ignore[override]
+        """Lazy PR lookup with cached result."""
+        if self._pr_num_cached is _PR_NUM_UNSET:
+            from diff_poetry_lock.github import GithubApi
+
+            print(f"[DEBUG VelaSettings.pr_num] Looking up PR for branch: {self.ref}")
+            try:
                 api = GithubApi(self)
-                cached = api.find_pr_for_branch(self.ref)
-                object.__setattr__(self, "_pr_num_cached", cached)
+                cached = api.find_pr_for_branch(self.ref) or None
+                self._pr_num_cached = cached
                 if cached:
                     print(f"[DEBUG VelaSettings.pr_num] Found PR #{cached}")
                 else:
                     print("[DEBUG VelaSettings.pr_num] No open PR found")
-            return cached
-        return object.__getattribute__(self, name)
+            except Exception as e:
+                print(f"[DEBUG VelaSettings.pr_num] Error looking up PR: {e}")
+                self._pr_num_cached = None
+
+        return self._pr_num_cached if isinstance(self._pr_num_cached, str) else None
 
 
 class GitHubActionsSettings(BaseSettings, Settings):
