@@ -1,8 +1,8 @@
 import sys
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, ClassVar
 
-from pydantic import BaseSettings, Field, PrivateAttr, ValidationError, validator
+from pydantic import BaseSettings, Field, PrivateAttr, ValidationError, root_validator, validator
 from pydantic.errors import PydanticValueError
 
 
@@ -18,7 +18,7 @@ class Settings(ABC):
     lockfile_path: str
     api_url: str
 
-    sigil_envvar: str
+    sigil_envvar: ClassVar[str]
     """The envvar in this will always be present when this settings is valid."""
 
     @property
@@ -32,14 +32,14 @@ _PR_NUM_UNSET = object()
 
 
 class VelaSettings(BaseSettings, Settings):
-    sigil_envvar: str = "VELA_REPO_FULL_NAME"
-    _pr_num_cached: str | None | object = PrivateAttr(default=_PR_NUM_UNSET)
+    sigil_envvar: ClassVar[str] = "VELA_REPO_FULL_NAME"
+    _pr_num_cached: str | None | object = PrivateAttr(default_factory=lambda: _PR_NUM_UNSET)
 
     # from CI
     event_name: str = Field(env="VELA_BUILD_EVENT")
     ref: str = Field(env="VELA_BUILD_REF")
     repository: str = Field(env="VELA_REPO_FULL_NAME")
-    base_ref: str = Field(default="", env=None)  # Calculated from VELA_REPO_BRANCH in __init__
+    base_ref: str = Field(default="", env=None)  # Calculated from VELA_REPO_BRANCH compute_base_ref
 
     # Helper field for calculation
     repo_branch: str = Field(env="VELA_REPO_BRANCH")
@@ -49,13 +49,17 @@ class VelaSettings(BaseSettings, Settings):
     lockfile_path: str = Field(env="PARAMETER_LOCKFILE_PATH", default="poetry.lock")
     api_url: str = Field(env="PARAMETER_GITHUB_API_URL", default="https://api.github.com")
 
-    def __init__(self, **values: Any) -> None:  # noqa: ANN401
-        super().__init__(**values)
-        # Calculate base_ref from repo_branch
-        self.base_ref = f"refs/heads/{self.repo_branch}"
-        print(f"[DEBUG VelaSettings] Calculated base_ref: {self.base_ref} from repo_branch: {self.repo_branch}")
-        print(f"[DEBUG VelaSettings] ref: {self.ref}")
-        print(f"[DEBUG VelaSettings] event_name: {self.event_name}")
+    @root_validator(skip_on_failure=True)
+    def compute_base_ref(cls, values: dict[str, Any]) -> dict[str, Any]:
+        repo_branch = values.get("repo_branch")
+        if repo_branch:
+            values["base_ref"] = f"refs/heads/{repo_branch}"
+            print(f"[DEBUG VelaSettings] Calculated base_ref: {values['base_ref']} from repo_branch: {repo_branch}")
+        else:
+            values["base_ref"] = ""
+        print(f"[DEBUG VelaSettings] ref: {values.get('ref')}")
+        print(f"[DEBUG VelaSettings] event_name: {values.get('event_name')}")
+        return values
 
     @property
     def pr_num(self) -> str | None:
@@ -80,7 +84,7 @@ class VelaSettings(BaseSettings, Settings):
 
 
 class GitHubActionsSettings(BaseSettings, Settings):
-    sigil_envvar: str = "github_repository"
+    sigil_envvar: ClassVar[str] = "github_repository"
 
     # from CI
     event_name: str = Field(env="github_event_name")  # must be 'pull_request'
@@ -131,21 +135,12 @@ class CiNotImplemented(BaseException):
 def find_settings_for_environment() -> type[Settings] | None:
     import os
 
-    # Map of settings class names to their sigil environment variables
-    SIGILS = {
-        'GitHubActionsSettings': 'github_repository',
-        'VelaSettings': 'VELA_REPO_FULL_NAME',
-    }
+    env_keys_lower = {key.lower() for key in os.environ}
 
     def valid(item: type[Settings]) -> bool:
-        # First check if the sigil environment variable is present
-        # This avoids unnecessary instantiation attempts that may print errors
-        class_name = item.__name__
-        if class_name in SIGILS:
-            sigil_var = SIGILS[class_name]
-            if sigil_var not in os.environ:
-                # Sigil not present, skip this settings class
-                return False
+        sigil_var = getattr(item, "sigil_envvar", "")
+        if sigil_var and sigil_var.lower() not in env_keys_lower:
+            return False
 
         try:
             item()
