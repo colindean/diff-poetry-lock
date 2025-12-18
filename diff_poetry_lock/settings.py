@@ -106,7 +106,7 @@ class GitHubActionsSettings(BaseSettings, Settings):
         return self.ref.split("/")[2]
 
 
-_CI_SETTINGS_CANDIDATES: list[type[Settings]] = [VelaSettings, GitHubActionsSettings]
+_CI_SETTINGS_CANDIDATES: list[type[Settings]] = [GitHubActionsSettings, VelaSettings]
 
 
 class CiNotImplemented(BaseException):
