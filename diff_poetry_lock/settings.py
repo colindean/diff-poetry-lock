@@ -1,9 +1,8 @@
 import sys
 from abc import ABC
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import BaseSettings, Field, ValidationError, validator
-from pydantic.errors import PydanticValueError
 
 
 class Settings(ABC):
@@ -19,12 +18,17 @@ class Settings(ABC):
     lockfile_path: str
     api_url: str
 
-    sigil_envvar: str
+    sigil_envvar: ClassVar[str]
     """The envvar in this will always be present when this settings is valid."""
+
+    @classmethod
+    def matches_env(cls, env: dict[str, str]) -> bool:
+        """Check whether this CI's identifying env var is present."""
+        return any(key == cls.sigil_envvar for key in env)
 
 
 class VelaSettings(BaseSettings, Settings):
-    sigil_envvar: str = "VELA_REPO_FULL_NAME"
+    sigil_envvar: ClassVar[str] = "VELA_REPO_FULL_NAME"
 
     # from CI
     event_name: str = Field(env="VELA_BUILD_EVENT")
@@ -68,7 +72,7 @@ class VelaSettings(BaseSettings, Settings):
 
 
 class GitHubActionsSettings(BaseSettings, Settings):
-    sigil_envvar: str = "github_repository"
+    sigil_envvar: ClassVar[str] = "github_repository"
 
     # from CI
     event_name: str = Field(env="github_event_name")  # must be 'pull_request'
@@ -119,18 +123,8 @@ class CiNotImplemented(BaseException):
 def find_settings_for_environment() -> type[Settings] | None:
     import os
 
-    def valid(item: type[Settings]) -> bool:
-        sigil_var = getattr(item, "sigil_envvar", "")
-        if sigil_var and sigil_var not in os.environ:
-            return False
-
-        try:
-            item()
-            return True  # noqa: TRY300
-        except PydanticValueError:
-            return False
-
-    return next((item for item in _CI_SETTINGS_CANDIDATES if valid(item)), None)
+    env = dict(os.environ)
+    return next((item for item in _CI_SETTINGS_CANDIDATES if item.matches_env(env)), None)
 
 
 def determine_and_load_settings() -> Settings:
