@@ -119,11 +119,9 @@ class CiNotImplemented(BaseException):
 def find_settings_for_environment() -> type[Settings] | None:
     import os
 
-    env_keys_lower = {key.lower() for key in os.environ}
-
     def valid(item: type[Settings]) -> bool:
         sigil_var = getattr(item, "sigil_envvar", "")
-        if sigil_var and sigil_var.lower() not in env_keys_lower:
+        if sigil_var and sigil_var not in os.environ:
             return False
 
         try:
