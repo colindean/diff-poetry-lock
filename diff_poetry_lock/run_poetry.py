@@ -1,4 +1,4 @@
-import sys
+import logging
 import tempfile
 from operator import attrgetter
 from pathlib import Path
@@ -8,7 +8,10 @@ from poetry.core.packages.package import Package
 from poetry.packages import Locker
 
 from diff_poetry_lock.github import GithubApi
+from diff_poetry_lock.logging_utils import configure_logging
 from diff_poetry_lock.settings import Settings, determine_and_load_settings
+
+logger = logging.getLogger(__name__)
 
 
 def load_packages(filename: Path = Path("poetry.lock")) -> list[Package]:
@@ -72,7 +75,7 @@ def post_comment(api: GithubApi, comment: str | None) -> None:
     existing_comments = api.list_comments()
 
     if len(existing_comments) > 1:
-        print("Found more than one existing comment, only updating first comment", file=sys.stderr)
+        logger.warning("Found more than one existing comment, only updating first comment")
 
     existing_comment = existing_comments[0] if existing_comments else None
     api.upsert_comment(existing_comment, comment)
@@ -107,42 +110,41 @@ def load_lockfile(api: GithubApi, ref: str) -> list[Package]:
 
 
 def main() -> None:
+    configure_logging()
     settings = determine_and_load_settings()
-    print(settings)
+    logger.debug("Loaded settings using %s", type(settings).__name__)
     do_diff(settings)
 
 
 def do_diff(settings: Settings) -> None:
     api = GithubApi(settings)
 
-    print(f"[DEBUG do_diff] Starting diff with base_ref={settings.base_ref}, ref={settings.ref}")
+    logger.debug("Starting diff with base_ref=%s ref=%s", settings.base_ref, settings.ref)
 
-    print("[DEBUG do_diff] Loading base lockfile...")
+    logger.debug("Loading base lockfile...")
     base_packages = load_lockfile(api, settings.base_ref)
-    print(f"[DEBUG do_diff] Loaded {len(base_packages)} base packages")
+    logger.debug("Loaded %s base packages", len(base_packages))
 
-    print("[DEBUG do_diff] Loading head lockfile...")
+    logger.debug("Loading head lockfile...")
     head_packages = load_lockfile(api, settings.ref)
-    print(f"[DEBUG do_diff] Loaded {len(head_packages)} head packages")
+    logger.debug("Loaded %s head packages", len(head_packages))
 
-    print("[DEBUG do_diff] Computing diff...")
+    logger.debug("Computing diff...")
     packages = diff(base_packages, head_packages)
     summary = format_comment(packages)
 
     if summary:
-        print(f"[DEBUG do_diff] Generated summary with {len(summary)} characters")
-        print("=== DIFF SUMMARY ===")
-        print(summary)
-        print("====================")
+        logger.debug("Generated summary with %s characters", len(summary))
+        logger.debug("=== DIFF SUMMARY ===\n%s\n====================", summary)
         # Access pr_num property (triggers lazy lookup for VelaSettings)
         pr_number = settings.pr_num
         if pr_number:
-            print(f"[DEBUG do_diff] Posting comment to PR #{pr_number}")
+            logger.debug("Posting comment to PR #%s", pr_number)
             post_comment(api, summary)
         else:
-            print("[DEBUG do_diff] Skipping comment post (no PR number available)")
+            logger.debug("Skipping comment post (no PR number available)")
     else:
-        print("[DEBUG do_diff] No changes detected")
+        logger.info("No changes detected in poetry.lock")
 
 
 if __name__ == "__main__":

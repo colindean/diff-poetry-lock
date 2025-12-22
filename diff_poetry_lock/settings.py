@@ -1,8 +1,11 @@
+import logging
 import sys
 from abc import ABC
 from typing import Any, ClassVar
 
 from pydantic import BaseSettings, Field, ValidationError, validator
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(ABC):
@@ -49,9 +52,9 @@ class VelaSettings(BaseSettings, Settings):
         # Calculate base_ref from repo_branch
         self.base_ref = f"refs/heads/{self.repo_branch}"
         object.__setattr__(self, "_pr_num_cached", "")  # Initialize cache bypassing Pydantic
-        print(f"[DEBUG VelaSettings] Calculated base_ref: {self.base_ref} from repo_branch: {self.repo_branch}")
-        print(f"[DEBUG VelaSettings] ref: {self.ref}")
-        print(f"[DEBUG VelaSettings] event_name: {self.event_name}")
+        logger.debug("VelaSettings calculated base_ref=%s from repo_branch=%s", self.base_ref, self.repo_branch)
+        logger.debug("VelaSettings ref=%s", self.ref)
+        logger.debug("VelaSettings event_name=%s", self.event_name)
 
     def __getattribute__(self, name: str) -> Any:
         """Override to provide lazy pr_num lookup."""
@@ -59,14 +62,14 @@ class VelaSettings(BaseSettings, Settings):
             cached = object.__getattribute__(self, "_pr_num_cached")
             if not cached:
                 from diff_poetry_lock.github import GithubApi
-                print(f"[DEBUG VelaSettings.pr_num] Looking up PR for branch: {self.ref}")
+                logger.debug("VelaSettings.pr_num looking up PR for branch %s", self.ref)
                 api = GithubApi(self)
                 cached = api.find_pr_for_branch(self.ref)
                 object.__setattr__(self, "_pr_num_cached", cached)
                 if cached:
-                    print(f"[DEBUG VelaSettings.pr_num] Found PR #{cached}")
+                    logger.debug("VelaSettings.pr_num found PR #%s", cached)
                 else:
-                    print("[DEBUG VelaSettings.pr_num] No open PR found")
+                    logger.debug("VelaSettings.pr_num found no open PR")
             return cached
         return object.__getattribute__(self, name)
 
@@ -91,7 +94,7 @@ class GitHubActionsSettings(BaseSettings, Settings):
         except ValidationError as ex:
             if e1 := next(e.exc for e in ex.raw_errors if e.loc_tuple() == ("event_name",)):  # type: ignore[union-attr]
                 # event_name is not 'pull_request' - we fail early
-                print(str(e1), file=sys.stderr)
+                logger.error(str(e1))
                 sys.exit(0)
             raise
 
@@ -132,10 +135,7 @@ def determine_and_load_settings() -> Settings:
         try:
             return settings_type()
         except Exception as e:
-            print(f"[DEBUG] Error loading settings: {e}")
-            print(f"[DEBUG] Settings type: {settings_type}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("Error loading settings for %s", settings_type.__name__)
             raise
 
     raise CiNotImplemented
