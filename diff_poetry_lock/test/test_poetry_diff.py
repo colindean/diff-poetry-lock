@@ -46,8 +46,9 @@ def test_settings(monkeypatch: MonkeyPatch) -> None:
 def test_settings_not_pr(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("GITHUB_EVENT_NAME", "push")
     monkeypatch.setenv("GITHUB_REF", "refs/pull/1/merge")
-    monkeypatch.setenv("GITHUB_REPOSITORY", "account/repo")
+    monkeypatch.setenv("github_repository", "account/repo")
     monkeypatch.setenv("INPUT_GITHUB_TOKEN", "foobar")
+    monkeypatch.setenv("GITHUB_BASE_REF", "main")
 
     with pytest.raises(SystemExit) as pytest_wrapped_e:
         main()
