@@ -138,15 +138,8 @@ class GithubApi:
         )
         logger.debug("[find_pr_for_branch] Response status: %s", r.status_code)
         logger.debug("[find_pr_for_branch] Response headers: %s", dict(r.headers))
-        
-        if r.status_code >= 400:
-            logger.error("[find_pr_for_branch] HTTP %s Error - Unable to fetch pull requests", r.status_code)
-            logger.error("[find_pr_for_branch] Response body: %s", r.text[:500])
-            logger.error("[find_pr_for_branch] Request URL: %s", r.url)
-            logger.error("[find_pr_for_branch] X-RateLimit-Remaining: %s", r.headers.get("X-RateLimit-Remaining", "N/A"))
-            logger.error("[find_pr_for_branch] X-RateLimit-Reset: %s", r.headers.get("X-RateLimit-Reset", "N/A"))
-            logger.warning("[find_pr_for_branch] Skipping PR lookup due to API error - continuing without PR context")
-            return ""
+        logger.debug("[find_pr_for_branch] Response body: %s", r.text[:500] if r.status_code >= 400 else "OK")
+        r.raise_for_status()
         
         pulls = r.json()
         logger.debug("[find_pr_for_branch] Found %s open PR(s)", len(pulls))
