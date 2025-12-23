@@ -92,13 +92,25 @@ class GithubApi:
         return [c for c in all_comments if c.is_bot_comment()]
 
     def get_file(self, ref: str) -> Response:
+        url = f"{self.s.api_url}/repos/{self.s.repository}/contents/{self.s.lockfile_path}"
+        logger.debug("[get_file] URL: %s", url)
+        logger.debug("[get_file] Ref: %s", ref)
+        logger.debug("[get_file] Token present: %s", "Yes" if self.s.token else "No")
+        logger.debug("[get_file] Token length: %d", len(self.s.token) if self.s.token else 0)
+        logger.debug("[get_file] Token first 10 chars: %s", self.s.token[:10] if self.s.token else "N/A")
+        logger.debug("[get_file] Token last 10 chars: %s", self.s.token[-10:] if self.s.token else "N/A")
+        logger.debug("[get_file] Token contains newline: %s", "\n" in self.s.token if self.s.token else False)
+        
         r = self.session.get(
-            f"{self.s.api_url}/repos/{self.s.repository}/contents/{self.s.lockfile_path}",
+            url,
             params={"ref": ref},
             headers={"Authorization": f"token {self.s.token}", "Accept": "application/vnd.github.raw"},
             timeout=10,
             stream=True,
         )
+        logger.debug("[get_file] Response status: %s", r.status_code)
+        logger.debug("[get_file] Response headers: %s", dict(r.headers))
+        
         if r.status_code == 404:
             raise FileNotFoundError(self.s.lockfile_path) from RepoFileRetrievalError(self.s.repository, ref)
         r.raise_for_status()
