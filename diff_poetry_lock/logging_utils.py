@@ -13,7 +13,10 @@ def configure_logging() -> None:
         return
 
     level = logging.DEBUG if _is_debug_enabled() else logging.INFO
-    logging.basicConfig(level=level, format="%(levelname)s %(name)s: %(message)s")
+    logging.basicConfig(
+        level=level,
+        format="%(levelname)s %(name)s - %(funcName)s: %(message)s"
+    )
     _CONFIGURED = True
 
 
