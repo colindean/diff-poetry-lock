@@ -44,32 +44,25 @@ class GithubApi:
             logger.debug("No PR number available; skipping comment post")
             return
 
-        url = f"{self.s.api_url}/repos/{self.s.repository}/issues/{self.s.pr_num}/comments"
-        logger.debug("Posting comment to %s", url)
-        logger.debug("PR number: %s", self.s.pr_num)
-        logger.debug("Repository: %s", self.s.repository)
-        logger.debug("API URL: %s", self.s.api_url)
-        logger.debug("Token present: %s", "Yes" if self.s.token else "No")
-        logger.debug("Comment length: %s chars", len(comment))
-        
+        logger.debug("Posting comment to PR #%s", self.s.pr_num)
         r = self.session.post(
-            url,
+            f"{self.s.api_url}/repos/{self.s.repository}/issues/{self.s.pr_num}/comments",
             headers={"Authorization": f"token {self.s.token}", "Accept": "application/vnd.github+json"},
             json={"body": f"{MAGIC_COMMENT_IDENTIFIER}{comment}"},
             timeout=10,
         )
-        logger.debug("Response status code: %s", r.status_code)
-        logger.debug("Response text: %s", r.text[:200])
+        logger.debug("Response status: %s", r.status_code)
         r.raise_for_status()
-        logger.debug("Comment posted successfully")
 
     def update_comment(self, comment_id: int, comment: str) -> None:
+        logger.debug("Updating comment %s", comment_id)
         r = self.session.patch(
             f"{self.s.api_url}/repos/{self.s.repository}/issues/comments/{comment_id}",
             headers={"Authorization": f"token {self.s.token}", "Accept": "application/vnd.github+json"},
             json={"body": f"{MAGIC_COMMENT_IDENTIFIER}{comment}"},
             timeout=10,
         )
+        logger.debug("Response status: %s", r.status_code)
         r.raise_for_status()
 
     def list_comments(self) -> list[GithubComment]:
@@ -77,6 +70,7 @@ class GithubApi:
             logger.debug("No PR number available; returning empty comment list")
             return []
 
+        logger.debug("Fetching comments for PR #%s", self.s.pr_num)
         all_comments, comments, page = [], None, 1
         while comments is None or len(comments) == 100:
             r = self.session.get(
@@ -89,79 +83,60 @@ class GithubApi:
             comments = parse_obj_as(list[GithubComment], r.json())
             all_comments.extend(comments)
             page += 1
+        logger.debug("Found %d comments", len(all_comments))
         return [c for c in all_comments if c.is_bot_comment()]
 
     def get_file(self, ref: str) -> Response:
-        url = f"{self.s.api_url}/repos/{self.s.repository}/contents/{self.s.lockfile_path}"
-        logger.debug("[get_file] URL: %s", url)
-        logger.debug("[get_file] Ref: %s", ref)
-        logger.debug("[get_file] Token present: %s", "Yes" if self.s.token else "No")
-        logger.debug("[get_file] Token length: %d", len(self.s.token) if self.s.token else 0)
-        logger.debug("[get_file] Token first 10 chars: %s", self.s.token[:10] if self.s.token else "N/A")
-        logger.debug("[get_file] Token last 10 chars: %s", self.s.token[-10:] if self.s.token else "N/A")
-        logger.debug("[get_file] Token contains newline: %s", "\n" in self.s.token if self.s.token else False)
-        
+        logger.debug("Fetching %s from ref %s", self.s.lockfile_path, ref)
+
         r = self.session.get(
-            url,
+            f"{self.s.api_url}/repos/{self.s.repository}/contents/{self.s.lockfile_path}",
             params={"ref": ref},
             headers={"Authorization": f"token {self.s.token}", "Accept": "application/vnd.github.raw"},
             timeout=10,
             stream=True,
         )
-        logger.debug("[get_file] Response status: %s", r.status_code)
-        logger.debug("[get_file] Response headers: %s", dict(r.headers))
-        
+        logger.debug("Response status: %s", r.status_code)
+
         if r.status_code == 404:
             raise FileNotFoundError(self.s.lockfile_path) from RepoFileRetrievalError(self.s.repository, ref)
         r.raise_for_status()
         return r
 
     def delete_comment(self, comment_id: int) -> None:
+        logger.debug("Deleting comment %s", comment_id)
         r = self.session.delete(
             f"{self.s.api_url}/repos/{self.s.repository}/issues/comments/{comment_id}",
             headers={"Authorization": f"token {self.s.token}", "Accept": "application/vnd.github+json"},
         )
+        logger.debug("Response status: %s", r.status_code)
         r.raise_for_status()
 
     def find_pr_for_branch(self, branch_ref: str) -> str:
         """Find open PR number for a given branch ref (e.g., 'refs/heads/deps-update').
         Returns PR number as string, or empty string if not found."""
-        # Extract branch name from ref
         branch = branch_ref.replace("refs/heads/", "")
-        logger.debug("[find_pr_for_branch] Looking for PR with head branch %s", branch)
-        
-        # Get organization from repository (owner/repo)
+        logger.debug("Looking for open PR for branch %s", branch)
+
         org = self.s.repository.split("/")[0]
         head = f"{org}:{branch}"
-        
-        # Query GitHub API for open PRs with this head branch
-        url = f"{self.s.api_url}/repos/{self.s.repository}/pulls"
-        params = {"head": head, "state": "open"}
-        logger.debug("[find_pr_for_branch] API URL: %s", url)
-        logger.debug("[find_pr_for_branch] Params: %s", params)
-        logger.debug("[find_pr_for_branch] Token length: %d", len(self.s.token) if self.s.token else 0)
-        logger.debug("[find_pr_for_branch] Token type check: Bearer token present: %s", bool(self.s.token))
-        
+
         r = self.session.get(
-            url,
-            params=params,
+            f"{self.s.api_url}/repos/{self.s.repository}/pulls",
+            params={"head": head, "state": "open"},
             headers={"Authorization": f"token {self.s.token}", "Accept": "application/vnd.github+json"},
             timeout=10,
         )
-        logger.debug("[find_pr_for_branch] Response status: %s", r.status_code)
-        logger.debug("[find_pr_for_branch] Response headers: %s", dict(r.headers))
-        logger.debug("[find_pr_for_branch] Response body: %s", r.text[:500] if r.status_code >= 400 else "OK")
+        logger.debug("Response status: %s", r.status_code)
         r.raise_for_status()
-        
+
         pulls = r.json()
-        logger.debug("[find_pr_for_branch] Found %s open PR(s)", len(pulls))
-        
         if pulls and len(pulls) > 0:
             pr_num = str(pulls[0]["number"])
-            logger.debug("[find_pr_for_branch] Using PR #%s", pr_num)
+            logger.debug("Found open PR #%s", pr_num)
             return pr_num
-        
-        logger.debug("[find_pr_for_branch] No open PR found")
+
+        logger.debug("No open PR found for branch %s", branch)
         return ""
 
     def upsert_comment(self, existing_comment: GithubComment | None, comment: str | None) -> None:
