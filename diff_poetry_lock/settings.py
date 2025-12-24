@@ -62,6 +62,7 @@ class VelaSettings(BaseSettings, Settings):
             cached = object.__getattribute__(self, "_pr_num_cached")
             if not cached:
                 from diff_poetry_lock.github import GithubApi
+
                 logger.debug("VelaSettings.pr_num looking up PR for branch %s", self.ref)
                 api = GithubApi(self)
                 cached = api.find_pr_for_branch(self.ref)
@@ -134,7 +135,7 @@ def determine_and_load_settings() -> Settings:
     if settings_type := find_settings_for_environment():
         try:
             return settings_type()
-        except Exception as e:
+        except Exception:
             logger.exception("Error loading settings for %s", settings_type.__name__)
             raise
 
