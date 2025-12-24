@@ -4,7 +4,7 @@ import requests
 from pydantic import BaseModel, Field, parse_obj_as
 from requests import Response
 
-from diff_poetry_lock.settings import Settings
+from diff_poetry_lock.settings import PrLookupConfigurable, Settings
 
 MAGIC_COMMENT_IDENTIFIER = "<!-- posted by Github Action nborrmann/diff-poetry-lock -->\n\n"
 MAGIC_BOT_USER_ID = 41898282
@@ -34,6 +34,8 @@ class GithubApi:
     def __init__(self, settings: Settings) -> None:
         self.s = settings
         self.session = requests.session()
+        if isinstance(self.s, PrLookupConfigurable):
+            self.s.set_pr_lookup_service(self)
 
     def post_comment(self, comment: str) -> None:
         if not comment:

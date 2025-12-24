@@ -1,11 +1,23 @@
 import logging
+import os
 import sys
 from abc import ABC
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Protocol, runtime_checkable
 
-from pydantic import BaseSettings, Field, ValidationError, validator
+from pydantic import BaseSettings, Field, PrivateAttr, ValidationError, validator
 
 logger = logging.getLogger(__name__)
+
+
+class PrLookupService(Protocol):
+    def find_pr_for_branch(self, branch_ref: str) -> str:
+        ...
+
+
+@runtime_checkable
+class PrLookupConfigurable(Protocol):
+    def set_pr_lookup_service(self, service: PrLookupService) -> None:
+        ...
 
 
 class Settings(ABC):
@@ -32,6 +44,8 @@ class Settings(ABC):
 
 class VelaSettings(BaseSettings, Settings):
     sigil_envvar: ClassVar[str] = "VELA_REPO_FULL_NAME"
+    _pr_lookup_service: PrLookupService | None = PrivateAttr(default=None)
+    _pr_num_cached: str = PrivateAttr(default="")
 
     # from CI
     event_name: str = Field(env="VELA_BUILD_EVENT")
@@ -51,28 +65,30 @@ class VelaSettings(BaseSettings, Settings):
         super().__init__(**values)
         # Calculate base_ref from repo_branch
         self.base_ref = f"refs/heads/{self.repo_branch}"
-        object.__setattr__(self, "_pr_num_cached", "")  # Initialize cache bypassing Pydantic
         logger.debug("VelaSettings calculated base_ref=%s from repo_branch=%s", self.base_ref, self.repo_branch)
         logger.debug("VelaSettings ref=%s", self.ref)
         logger.debug("VelaSettings event_name=%s", self.event_name)
 
-    def __getattribute__(self, name: str) -> Any:
-        """Override to provide lazy pr_num lookup."""
-        if name == "pr_num":
-            cached = object.__getattribute__(self, "_pr_num_cached")
-            if not cached:
-                from diff_poetry_lock.github import GithubApi
+    def set_pr_lookup_service(self, service: PrLookupService) -> None:
+        self._pr_lookup_service = service
 
-                logger.debug("VelaSettings.pr_num looking up PR for branch %s", self.ref)
-                api = GithubApi(self)
-                cached = api.find_pr_for_branch(self.ref)
-                object.__setattr__(self, "_pr_num_cached", cached)
-                if cached:
-                    logger.debug("VelaSettings.pr_num found PR #%s", cached)
-                else:
-                    logger.debug("VelaSettings.pr_num found no open PR")
-            return cached
-        return object.__getattribute__(self, name)
+    @property
+    def pr_num(self) -> str:  # type: ignore[override]
+        if self._pr_num_cached:
+            return self._pr_num_cached
+
+        if self._pr_lookup_service is None:
+            logger.debug("PR lookup requested before service configured; returning empty string")
+            return ""
+
+        logger.debug("VelaSettings.pr_num looking up PR for branch %s", self.ref)
+        pr_num = self._pr_lookup_service.find_pr_for_branch(self.ref)
+        self._pr_num_cached = pr_num
+        if pr_num:
+            logger.debug("VelaSettings.pr_num found PR #%s", pr_num)
+        else:
+            logger.debug("VelaSettings.pr_num found no open PR")
+        return pr_num
 
 
 class GitHubActionsSettings(BaseSettings, Settings):
@@ -95,7 +111,7 @@ class GitHubActionsSettings(BaseSettings, Settings):
         except ValidationError as ex:
             if e1 := next(e.exc for e in ex.raw_errors if e.loc_tuple() == ("event_name",)):  # type: ignore[union-attr]
                 # event_name is not 'pull_request' - we fail early
-                logger.error(str(e1))
+                logger.exception(str(e1))
                 sys.exit(0)
             raise
 
@@ -125,8 +141,6 @@ class CiNotImplemented(BaseException):
 
 
 def find_settings_for_environment() -> type[Settings] | None:
-    import os
-
     env = dict(os.environ)
     return next((item for item in _CI_SETTINGS_CANDIDATES if item.matches_env(env)), None)
 
