@@ -10,14 +10,12 @@ logger = logging.getLogger(__name__)
 
 
 class PrLookupService(Protocol):
-    def find_pr_for_branch(self, branch_ref: str) -> str:
-        ...
+    def find_pr_for_branch(self, branch_ref: str) -> str: ...
 
 
 @runtime_checkable
 class PrLookupConfigurable(Protocol):
-    def set_pr_lookup_service(self, service: PrLookupService) -> None:
-        ...
+    def set_pr_lookup_service(self, service: PrLookupService) -> None: ...
 
 
 class Settings(ABC):
