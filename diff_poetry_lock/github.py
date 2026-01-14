@@ -30,7 +30,6 @@ class RepoFileRetrievalError(BaseException):
         super().__init__(msg)
 
 
-
 class GithubApi:
     def __init__(self, settings: Settings) -> None:
         self.s = settings

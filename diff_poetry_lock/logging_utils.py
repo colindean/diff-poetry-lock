@@ -8,6 +8,7 @@ DEBUG_ENV_VAR = "DEBUG_MODE"
 
 class _StateKey(Enum):
     """Enum for state dictionary keys."""
+
     CONFIGURED = "configured"
 
 
