@@ -46,8 +46,8 @@ class VelaSettings(BaseSettings, Settings):
     # from CI
     event_name: str = Field(env="VELA_BUILD_EVENT")
     ref: str = Field(env="VELA_BUILD_REF")
-    base_ref: str = Field(env="VELA_BUILD_BASE_REF")
     repository: str = Field(env="VELA_REPO_FULL_NAME")
+    base_ref: str = Field(default="", env=None)  # Calculated from VELA_REPO_BRANCH in __init__
 
     # Helper field for calculation
     repo_branch: str = Field(env="VELA_REPO_BRANCH")
@@ -59,7 +59,9 @@ class VelaSettings(BaseSettings, Settings):
 
     def __init__(self, **values: Any) -> None:  # noqa: ANN401
         super().__init__(**values)
-        logger.debug("VelaSettings base_ref={}", self.base_ref)
+        # Calculate base_ref from repo_branch
+        self.base_ref = f"refs/heads/{self.repo_branch}"
+        logger.debug("VelaSettings calculated base_ref={} from repo_branch={}", self.base_ref, self.repo_branch)
         logger.debug("VelaSettings ref={}", self.ref)
         logger.debug("VelaSettings event_name={}", self.event_name)
 
