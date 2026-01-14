@@ -1,20 +1,27 @@
 import logging
 import os
+from enum import Enum
 from typing import Final
 
-DEBUG_ENV_VAR = "DIFF_POETRY_LOCK_DEBUG"
+DEBUG_ENV_VAR = "DEBUG_MODE"
 
-_STATE: Final[dict[str, bool]] = {"configured": False}
+
+class _StateKey(Enum):
+    """Enum for state dictionary keys."""
+    CONFIGURED = "configured"
+
+
+_STATE: Final[dict[str, bool]] = {_StateKey.CONFIGURED.value: False}
 
 
 def configure_logging() -> None:
     """Configure root logging once, honoring the debug flag env var."""
-    if _STATE["configured"] or logging.getLogger().handlers:
+    if _STATE[_StateKey.CONFIGURED.value] or logging.getLogger().handlers:
         return
 
     level = logging.DEBUG if _is_debug_enabled() else logging.INFO
     logging.basicConfig(level=level, format="%(levelname)s %(name)s - %(funcName)s: %(message)s")
-    _STATE["configured"] = True
+    _STATE[_StateKey.CONFIGURED.value] = True
 
 
 def _is_debug_enabled() -> bool:

@@ -40,7 +40,7 @@ _Coming soon_
 
 ### Debug logging
 
-Set the `DIFF_POETRY_LOCK_DEBUG` environment variable to `true` (or `1`, `yes`, `on`) to enable verbose debug logging.
+Set the `DEBUG_MODE` environment variable to `true` (or `1`, `yes`, `on`) to enable verbose debug logging.
 When unset, only informational and higher level log messages are emitted, reducing noise in CI logs.
 
 ## History

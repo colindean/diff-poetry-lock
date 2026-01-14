@@ -37,7 +37,7 @@ class Settings(ABC):
     @classmethod
     def matches_env(cls, env: dict[str, str]) -> bool:
         """Check whether this CI's identifying env var is present."""
-        return any(key == cls.sigil_envvar for key in env)
+        return any(key.lower() == cls.sigil_envvar.lower() for key in env)
 
 
 class VelaSettings(BaseSettings, Settings):
