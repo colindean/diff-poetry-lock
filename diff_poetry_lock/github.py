@@ -1,6 +1,5 @@
-import logging
-
 import requests
+from loguru import logger
 from pydantic import BaseModel, Field, parse_obj_as
 from requests import Response
 
@@ -8,8 +7,6 @@ from diff_poetry_lock.settings import PrLookupConfigurable, Settings
 
 MAGIC_COMMENT_IDENTIFIER = "<!-- posted by Github Action nborrmann/diff-poetry-lock -->\n\n"
 MAGIC_BOT_USER_ID = 41898282
-
-logger = logging.getLogger(__name__)
 
 
 class GithubComment(BaseModel):

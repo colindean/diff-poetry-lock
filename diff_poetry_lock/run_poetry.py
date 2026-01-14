@@ -1,17 +1,15 @@
-import logging
 import tempfile
 from operator import attrgetter
 from pathlib import Path
 
 import pydantic
+from loguru import logger
 from poetry.core.packages.package import Package
 from poetry.packages import Locker
 
 from diff_poetry_lock.github import GithubApi
 from diff_poetry_lock.logging_utils import configure_logging
 from diff_poetry_lock.settings import Settings, determine_and_load_settings
-
-logger = logging.getLogger(__name__)
 
 
 def load_packages(filename: Path = Path("poetry.lock")) -> list[Package]:

@@ -1,7 +1,8 @@
-import logging
 import os
 from enum import Enum
 from typing import Final
+
+from loguru import logger
 
 DEBUG_ENV_VAR = "DEBUG_MODE"
 
@@ -16,12 +17,20 @@ _STATE: Final[dict[str, bool]] = {_StateKey.CONFIGURED.value: False}
 
 
 def configure_logging() -> None:
-    """Configure root logging once, honoring the debug flag env var."""
-    if _STATE[_StateKey.CONFIGURED.value] or logging.getLogger().handlers:
+    """Configure logging once, honoring the debug flag env var."""
+    if _STATE[_StateKey.CONFIGURED.value]:
         return
 
-    level = logging.DEBUG if _is_debug_enabled() else logging.INFO
-    logging.basicConfig(level=level, format="%(levelname)s %(name)s - %(funcName)s: %(message)s")
+    # Remove default handler
+    logger.remove()
+
+    level = "DEBUG" if _is_debug_enabled() else "INFO"
+    logger.add(
+        lambda msg: print(msg, end=""),
+        level=level,
+        format="{level} {name} - {function}: {message}\n",
+        colorize=False,
+    )
     _STATE[_StateKey.CONFIGURED.value] = True
 
 

@@ -1,12 +1,10 @@
-import logging
 import os
 import sys
 from abc import ABC
 from typing import Any, ClassVar, Protocol, runtime_checkable
 
+from loguru import logger
 from pydantic import BaseSettings, Field, PrivateAttr, ValidationError, validator
-
-logger = logging.getLogger(__name__)
 
 
 class PrLookupService(Protocol):
