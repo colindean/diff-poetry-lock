@@ -116,27 +116,27 @@ def main() -> None:
 def do_diff(settings: Settings) -> None:
     api = GithubApi(settings)
 
-    logger.debug("Starting diff with base_ref=%s ref=%s", settings.base_ref, settings.ref)
+    logger.debug("Starting diff with base_ref={} ref={}", settings.base_ref, settings.ref)
 
     logger.debug("Loading base lockfile...")
     base_packages = load_lockfile(api, settings.base_ref)
-    logger.debug("Loaded %s base packages", len(base_packages))
+    logger.debug("Loaded {} base packages", len(base_packages))
 
     logger.debug("Loading head lockfile...")
     head_packages = load_lockfile(api, settings.ref)
-    logger.debug("Loaded %s head packages", len(head_packages))
+    logger.debug("Loaded {} head packages", len(head_packages))
 
     logger.debug("Computing diff...")
     packages = diff(base_packages, head_packages)
     summary = format_comment(packages)
 
     if summary:
-        logger.debug("Generated summary with %s characters", len(summary))
-        logger.debug("=== DIFF SUMMARY ===\n%s\n====================", summary)
+        logger.debug("Generated summary with {} characters", len(summary))
+        logger.debug("\n=== DIFF SUMMARY ===\n{}\n====================\n", summary)
         # pr_num could be lazy lookup
         pr_number = settings.pr_num
         if pr_number:
-            logger.debug("Posting comment to PR #%s", pr_number)
+            logger.debug("Posting comment to PR #{}", pr_number)
             post_comment(api, summary)
         else:
             logger.info("Skipping comment post since no PR number is available.")

@@ -61,9 +61,9 @@ class VelaSettings(BaseSettings, Settings):
         super().__init__(**values)
         # Calculate base_ref from repo_branch
         self.base_ref = f"refs/heads/{self.repo_branch}"
-        logger.debug("VelaSettings calculated base_ref=%s from repo_branch=%s", self.base_ref, self.repo_branch)
-        logger.debug("VelaSettings ref=%s", self.ref)
-        logger.debug("VelaSettings event_name=%s", self.event_name)
+        logger.debug("VelaSettings calculated base_ref={} from repo_branch={}", self.base_ref, self.repo_branch)
+        logger.debug("VelaSettings ref={}", self.ref)
+        logger.debug("VelaSettings event_name={}", self.event_name)
 
     def set_pr_lookup_service(self, service: PrLookupService) -> None:
         self._pr_lookup_service = service
@@ -77,11 +77,11 @@ class VelaSettings(BaseSettings, Settings):
             logger.debug("PR lookup requested before service configured; returning empty string")
             return ""
 
-        logger.debug("VelaSettings.pr_num looking up PR for branch %s", self.ref)
+        logger.debug("VelaSettings.pr_num looking up PR for branch {}", self.ref)
         pr_num = self._pr_lookup_service.find_pr_for_branch(self.ref)
         self._pr_num_cached = pr_num
         if pr_num:
-            logger.debug("VelaSettings.pr_num found PR #%s", pr_num)
+            logger.debug("VelaSettings.pr_num found PR #{}", pr_num)
         else:
             logger.debug("VelaSettings.pr_num found no open PR")
         return pr_num
@@ -145,10 +145,10 @@ def determine_and_load_settings() -> Settings:
     if settings_type := find_settings_for_environment():
         try:
             settings = settings_type()
-            logger.debug("Successfully loaded settings using %s", settings_type.__name__)
+            logger.debug("Successfully loaded settings using {}", settings_type.__name__)
             return settings  # noqa: TRY300
         except Exception:
-            logger.exception("Error loading settings for %s", settings_type.__name__)
+            logger.exception("Error loading settings for {}", settings_type.__name__)
             raise
 
     raise CiNotImplemented
