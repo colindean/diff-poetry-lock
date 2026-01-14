@@ -40,7 +40,7 @@ class GithubApi:
             return
 
         if not self.s.pr_num:
-            logger.debug("No PR number available; skipping comment post")
+            logger.warning("No PR number available; skipping comment post")
             return
 
         logger.debug("Posting comment to PR #{}", self.s.pr_num)
@@ -66,7 +66,7 @@ class GithubApi:
 
     def list_comments(self) -> list[GithubComment]:
         if not self.s.pr_num:
-            logger.debug("No PR number available; returning empty comment list")
+            logger.warning("No PR number available; returning empty comment list")
             return []
 
         logger.debug("Fetching comments for PR #{}", self.s.pr_num)

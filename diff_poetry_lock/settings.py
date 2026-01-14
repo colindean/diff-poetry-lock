@@ -22,7 +22,7 @@ class Settings(ABC):
     ref: str
     repository: str
     base_ref: str
-    pr_num: str
+    pr_num: str | None
 
     # from step config including secrets
     token: str
@@ -69,13 +69,13 @@ class VelaSettings(BaseSettings, Settings):
         self._pr_lookup_service = service
 
     @property
-    def pr_num(self) -> str:  # type: ignore[override]
+    def pr_num(self) -> str | None:  # type: ignore[override]
         if self._pr_num_cached:
             return self._pr_num_cached
 
         if self._pr_lookup_service is None:
-            logger.debug("PR lookup requested before service configured; returning empty string")
-            return ""
+            logger.warning("PR lookup requested before service configured; returning None")
+            return None
 
         logger.debug("VelaSettings.pr_num looking up PR for branch {}", self.ref)
         pr_num = self._pr_lookup_service.find_pr_for_branch(self.ref)
@@ -83,7 +83,7 @@ class VelaSettings(BaseSettings, Settings):
         if pr_num:
             logger.debug("VelaSettings.pr_num found PR #{}", pr_num)
         else:
-            logger.debug("VelaSettings.pr_num found no open PR")
+            logger.warning("VelaSettings.pr_num found no open PR")
         return pr_num
 
 
@@ -121,7 +121,7 @@ class GitHubActionsSettings(BaseSettings, Settings):
 
     @property
     # todo: Avoid this MyPy error by having Pydantic compute the field
-    def pr_num(self) -> str:  # type: ignore[override]
+    def pr_num(self) -> str | None:  # type: ignore[override]
         # TODO: Validate early
         return self.ref.split("/")[2]
 
