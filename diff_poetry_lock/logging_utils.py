@@ -25,12 +25,7 @@ def configure_logging() -> None:
     logger.remove()
 
     level = "DEBUG" if _is_debug_enabled() else "INFO"
-    logger.add(
-        lambda msg: print(msg, end=""),
-        level=level,
-        format="{level} {name} - {function}: {message}\n",
-        colorize=False,
-    )
+    logger.add(lambda msg: print(msg, end=""), level=level)
     _STATE[_StateKey.CONFIGURED.value] = True
 
 
