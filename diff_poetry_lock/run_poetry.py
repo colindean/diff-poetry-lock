@@ -110,7 +110,6 @@ def load_lockfile(api: GithubApi, ref: str) -> list[Package]:
 def main() -> None:
     configure_logging()
     settings = determine_and_load_settings()
-    logger.debug("Loaded settings using %s", type(settings).__name__)
     do_diff(settings)
 
 
@@ -134,13 +133,13 @@ def do_diff(settings: Settings) -> None:
     if summary:
         logger.debug("Generated summary with %s characters", len(summary))
         logger.debug("=== DIFF SUMMARY ===\n%s\n====================", summary)
-        # Access pr_num property (triggers lazy lookup for VelaSettings)
+        # pr_num could be lazy lookup
         pr_number = settings.pr_num
         if pr_number:
             logger.debug("Posting comment to PR #%s", pr_number)
             post_comment(api, summary)
         else:
-            logger.debug("Skipping comment post (no PR number available)")
+            logger.info("Skipping comment post since no PR number is available.")
     else:
         logger.info("No changes detected in poetry.lock")
 

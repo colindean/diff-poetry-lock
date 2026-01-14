@@ -144,7 +144,9 @@ def find_settings_for_environment() -> type[Settings] | None:
 def determine_and_load_settings() -> Settings:
     if settings_type := find_settings_for_environment():
         try:
-            return settings_type()
+            settings = settings_type()
+            logger.debug("Successfully loaded settings using %s", settings_type.__name__)
+            return settings  # noqa: TRY300
         except Exception:
             logger.exception("Error loading settings for %s", settings_type.__name__)
             raise
