@@ -1,13 +1,14 @@
-import sys
 import tempfile
 from operator import attrgetter
 from pathlib import Path
 
 import pydantic
+from loguru import logger
 from poetry.core.packages.package import Package
 from poetry.packages import Locker
 
 from diff_poetry_lock.github import GithubApi
+from diff_poetry_lock.logging_utils import configure_logging
 from diff_poetry_lock.settings import Settings, determine_and_load_settings
 
 
@@ -72,7 +73,7 @@ def post_comment(api: GithubApi, comment: str | None) -> None:
     existing_comments = api.list_comments()
 
     if len(existing_comments) > 1:
-        print("Found more than one existing comment, only updating first comment", file=sys.stderr)
+        logger.warning("Found more than one existing comment, only updating first comment")
 
     existing_comment = existing_comments[0] if existing_comments else None
     api.upsert_comment(existing_comment, comment)
@@ -107,19 +108,40 @@ def load_lockfile(api: GithubApi, ref: str) -> list[Package]:
 
 
 def main() -> None:
+    configure_logging()
     settings = determine_and_load_settings()
-    print(settings)
     do_diff(settings)
 
 
 def do_diff(settings: Settings) -> None:
     api = GithubApi(settings)
-    base_packages = load_lockfile(api, settings.base_ref)
-    head_packages = load_lockfile(api, settings.ref)
 
+    logger.debug("Starting diff with base_ref={} ref={}", settings.base_ref, settings.ref)
+
+    logger.debug("Loading base lockfile...")
+    base_packages = load_lockfile(api, settings.base_ref)
+    logger.debug("Loaded {} base packages", len(base_packages))
+
+    logger.debug("Loading head lockfile...")
+    head_packages = load_lockfile(api, settings.ref)
+    logger.debug("Loaded {} head packages", len(head_packages))
+
+    logger.debug("Computing diff...")
     packages = diff(base_packages, head_packages)
     summary = format_comment(packages)
-    post_comment(api, summary)
+
+    if summary:
+        logger.debug("Generated summary with {} characters", len(summary))
+        logger.debug("\n=== DIFF SUMMARY ===\n{}\n====================\n", summary)
+        # pr_num could be lazy lookup
+        pr_number = settings.pr_num
+        if pr_number:
+            logger.debug("Posting comment to PR #{}", pr_number)
+            post_comment(api, summary)
+        else:
+            logger.info("Skipping comment post since no PR number is available.")
+    else:
+        logger.info("No changes detected in poetry.lock")
 
 
 if __name__ == "__main__":

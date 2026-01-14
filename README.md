@@ -38,6 +38,11 @@ If all changes are rolled back, the comment will be deleted.
 
 _Coming soon_
 
+### Debug logging
+
+Set the `DEBUG_MODE` environment variable to `true` (or `1`, `yes`, `on`) to enable verbose debug logging.
+When unset, only informational and higher level log messages are emitted, reducing noise in CI logs.
+
 ## History
 
 * Originally written by [@nborrmann](https://github.com/nborrmann) at <https://github.com/nborrmann/diff-poetry-lock>.
