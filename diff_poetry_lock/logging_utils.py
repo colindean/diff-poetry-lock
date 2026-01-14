@@ -1,4 +1,5 @@
 import os
+import sys
 from enum import Enum
 from typing import Final
 
@@ -25,7 +26,7 @@ def configure_logging() -> None:
     logger.remove()
 
     level = "DEBUG" if _is_debug_enabled() else "INFO"
-    logger.add(lambda msg: print(msg, end=""), level=level)
+    logger.add(sys.stderr, level=level)
     _STATE[_StateKey.CONFIGURED.value] = True
 
 
