@@ -47,4 +47,5 @@ jobs:
         with:
           persist-credentials: false
       - name: Diff poetry.lock
-        uses: target/diff-poetry-lock@main
+        uses: | # zizmor: ignore[unpinned-uses] It's safe to use main on our own repo.
+          target/diff-poetry-lock@main
