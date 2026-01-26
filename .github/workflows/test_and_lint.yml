@@ -36,3 +36,16 @@ jobs:
         run: poetry run mypy .
       - name: Pytest
         run: poetry run pytest .
+  diff-lockfile-main:
+    runs-on: ubuntu-latest
+    name: Dogfooding main
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        if: '!inputs.skip-checkout'
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+      - name: Diff poetry.lock
+        uses: | # zizmor: ignore[unpinned-uses] It's safe to use main on our own repo.
+          target/diff-poetry-lock@main
