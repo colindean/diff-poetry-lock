@@ -1,13 +1,13 @@
 # Diff poetry.lock with diff-poetry-lock in CI
 
-[![GitHub Release](https://img.shields.io/github/v/release/colindean/diff-poetry-lock)](https://github.com/colindean/diff-poetry-lock/releases/latest "Latest release notes")
-[![GitHub Release Date](https://img.shields.io/github/release-date/colindean/diff-poetry-lock)](https://github.com/colindean/diff-poetry-lock/releases/latest "Latest release notes")
-[![GitHub commits since latest release](https://img.shields.io/github/commits-since/colindean/diff-poetry-lock/latest)](https://github.com/colindean/diff-poetry-lock/releases/latest "Latest release notes")
+[![GitHub Release](https://img.shields.io/github/v/release/target/diff-poetry-lock)](https://github.com/target/diff-poetry-lock/releases/latest "Latest release notes")
+[![GitHub Release Date](https://img.shields.io/github/release-date/target/diff-poetry-lock)](https://github.com/target/diff-poetry-lock/releases/latest "Latest release notes")
+[![GitHub commits since latest release](https://img.shields.io/github/commits-since/target/diff-poetry-lock/latest)](https://github.com/target/diff-poetry-lock/releases/latest "Latest release notes")
 
-[![GitHub License](https://img.shields.io/github/license/colindean/diff-poetry-lock)](https://github.com/colindean/diff-poetry-lock/blob/main/LICENSE "LICENSE file")
+[![GitHub License](https://img.shields.io/github/license/target/diff-poetry-lock)](https://github.com/target/diff-poetry-lock/blob/main/LICENSE "LICENSE file")
 [![Contributors are expected to signoff using Developer Certificate of Origin, --sign-off when committing](https://img.shields.io/badge/contributor_requirement-Developer_Certificate_of_Origin-blue)](https://developercertificate.org/ "DCO website")
-[![GitHub contributors](https://img.shields.io/github/contributors-anon/colindean/diff-poetry-lock)](https://github.com/colindean/diff-poetry-lock/graphs/contributors "Contributor list")
-[![GitHub commit activity](https://img.shields.io/github/commit-activity/y/colindean/diff-poetry-lock)](https://github.com/colindean/diff-poetry-lock/pulse "Repo analytics")
+[![GitHub contributors](https://img.shields.io/github/contributors-anon/target/diff-poetry-lock)](https://github.com/target/diff-poetry-lock/graphs/contributors "Contributor list")
+[![GitHub commit activity](https://img.shields.io/github/commit-activity/y/target/diff-poetry-lock)](https://github.com/target/diff-poetry-lock/pulse "Repo analytics")
 
 
 Poetry's TOML lockfiles are very verbose and difficult to review quickly.
@@ -27,7 +27,7 @@ Simply add the following step to your Github Action:
 ```yaml
     steps:
       - name: Diff poetry.lock
-        uses: colindean/diff-poetry-lock@30a153ca2d5cbdd209fc78b0ec013915748b6bab # v0.0.2
+        uses: target/diff-poetry-lock@30a153ca2d5cbdd209fc78b0ec013915748b6bab # v0.0.2
 ```
 
 When the diff changes during the lifetime of a pull request,
