@@ -4,7 +4,7 @@ from abc import ABC
 from typing import Any, ClassVar, Protocol, runtime_checkable
 
 from loguru import logger
-from pydantic import BaseSettings, Field, PrivateAttr, ValidationError, validator
+from pydantic import BaseSettings, Field, PrivateAttr, SecretStr, ValidationError, validator
 
 
 class PrLookupService(Protocol):
