@@ -38,9 +38,9 @@ If all changes are rolled back, the comment will be deleted.
 
 ```yaml
 stages:
-  renovate-validate:
+  diff-poetry-lock:
     steps:
-      - name: Validate SCA configuration
+      - name: Post changed Poetry packages when poetry.lock changes
         image: ghcr.io/target/diff-poetry-lock:v0.0.3
         ruleset:
           event: [pull_request]
