@@ -22,7 +22,7 @@ This friction complicates the responsible acceptance of pull requests that chang
 
 ### [GitHub Actions](https://docs.github.com/en/actions) action
 
-Simply add the following step to your Github Action:
+Simply add the following step to your GitHub Action:
 
 ```yaml
     steps:
@@ -43,15 +43,22 @@ stages:
       - name: Post changed Poetry packages when poetry.lock changes
         image: ghcr.io/target/diff-poetry-lock:v0.0.3
         ruleset:
-          event: [pull_request]
-          path: ["poetry.lock"]
+          event: [ push ]
+          path: [ "poetry.lock" ]
           continue: true
+        secrets:
+          # setup the secret, too!
+          - source: service_account_github_token
+            target: github_token
+        parameters:
+          github_token: ${GITHUB_TOKEN}
+          github_api_url: https://git.example.com/api/v3
 ```
 
 ### Debug logging
 
 Set the `DEBUG_MODE` environment variable to `true` (or `1`, `yes`, `on`) to enable verbose debug logging.
-When unset, only informational and higher level log messages are emitted, reducing noise in CI logs.
+When unset, only informational and higher-level log messages are emitted, reducing noise in CI logs.
 
 ## History
 
