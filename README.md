@@ -36,7 +36,17 @@ If all changes are rolled back, the comment will be deleted.
 
 ### [Vela CI](https://go-vela.github.io/docs/usage/plugins) plugin
 
-_Coming soon_
+```yaml
+stages:
+  renovate-validate:
+    steps:
+      - name: Validate SCA configuration
+        image: ghcr.io/target/diff-poetry-lock:v0.0.3
+        ruleset:
+          event: [pull_request]
+          path: ["poetry.lock"]
+          continue: true
+```
 
 ### Debug logging
 
