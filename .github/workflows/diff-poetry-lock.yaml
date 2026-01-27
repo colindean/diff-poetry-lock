@@ -1,6 +1,6 @@
 name: Run diff-poetry-lock safe for forks
-on:
-  pull_request_target: # zizmor: ignore[dangerous-triggers] Limitations on checkout safen this.
+on: # zizmor: ignore[dangerous-triggers] Limitations on checkout safen this.
+  pull_request_target:
     branches:
       - main
     paths:
