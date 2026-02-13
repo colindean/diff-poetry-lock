@@ -114,8 +114,9 @@ class GitHubActionsSettings(BaseSettings, Settings):
     @validator("event_name")
     @classmethod
     def event_must_be_pull_request(cls, v: str) -> str:
-        if v != "pull_request":
-            msg = "This Github Action can only be run in the context of a pull request"
+        allowed_events = ["pull_request", "pull_request_target"]
+        if v not in allowed_events:
+            msg = f"This Github Action can only run in the context of events {events}."
             raise ValueError(msg)
         return v
 
