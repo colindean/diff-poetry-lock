@@ -116,7 +116,7 @@ class GitHubActionsSettings(BaseSettings, Settings):
     def event_must_be_pull_request(cls, v: str) -> str:
         allowed_events = ["pull_request", "pull_request_target"]
         if v not in allowed_events:
-            msg = f"This Github Action can only run in the context of events {events}."
+            msg = f"This Github Action can only run in the context of events {allowed_events}."
             raise ValueError(msg)
         return v
 
