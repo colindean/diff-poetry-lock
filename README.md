@@ -1,13 +1,13 @@
 # Diff poetry.lock with diff-poetry-lock in CI
 
-[![GitHub Release](https://img.shields.io/github/v/release/colindean/diff-poetry-lock)](https://github.com/colindean/diff-poetry-lock/releases/latest "Latest release notes")
-[![GitHub Release Date](https://img.shields.io/github/release-date/colindean/diff-poetry-lock)](https://github.com/colindean/diff-poetry-lock/releases/latest "Latest release notes")
-[![GitHub commits since latest release](https://img.shields.io/github/commits-since/colindean/diff-poetry-lock/latest)](https://github.com/colindean/diff-poetry-lock/releases/latest "Latest release notes")
+[![GitHub Release](https://img.shields.io/github/v/release/target/diff-poetry-lock)](https://github.com/target/diff-poetry-lock/releases/latest "Latest release notes")
+[![GitHub Release Date](https://img.shields.io/github/release-date/target/diff-poetry-lock)](https://github.com/target/diff-poetry-lock/releases/latest "Latest release notes")
+[![GitHub commits since latest release](https://img.shields.io/github/commits-since/target/diff-poetry-lock/latest)](https://github.com/target/diff-poetry-lock/releases/latest "Latest release notes")
 
-[![GitHub License](https://img.shields.io/github/license/colindean/diff-poetry-lock)](https://github.com/colindean/diff-poetry-lock/blob/main/LICENSE "LICENSE file")
+[![GitHub License](https://img.shields.io/github/license/target/diff-poetry-lock)](https://github.com/target/diff-poetry-lock/blob/main/LICENSE "LICENSE file")
 [![Contributors are expected to signoff using Developer Certificate of Origin, --sign-off when committing](https://img.shields.io/badge/contributor_requirement-Developer_Certificate_of_Origin-blue)](https://developercertificate.org/ "DCO website")
-[![GitHub contributors](https://img.shields.io/github/contributors-anon/colindean/diff-poetry-lock)](https://github.com/colindean/diff-poetry-lock/graphs/contributors "Contributor list")
-[![GitHub commit activity](https://img.shields.io/github/commit-activity/y/colindean/diff-poetry-lock)](https://github.com/colindean/diff-poetry-lock/pulse "Repo analytics")
+[![GitHub contributors](https://img.shields.io/github/contributors-anon/target/diff-poetry-lock)](https://github.com/target/diff-poetry-lock/graphs/contributors "Contributor list")
+[![GitHub commit activity](https://img.shields.io/github/commit-activity/y/target/diff-poetry-lock)](https://github.com/target/diff-poetry-lock/pulse "Repo analytics")
 
 
 Poetry's TOML lockfiles are very verbose and difficult to review quickly.
@@ -22,12 +22,12 @@ This friction complicates the responsible acceptance of pull requests that chang
 
 ### [GitHub Actions](https://docs.github.com/en/actions) action
 
-Simply add the following step to your Github Action:
+Simply add the following step to your GitHub Action:
 
 ```yaml
     steps:
       - name: Diff poetry.lock
-        uses: colindean/diff-poetry-lock@30a153ca2d5cbdd209fc78b0ec013915748b6bab # v0.0.2
+        uses: target/diff-poetry-lock@30a153ca2d5cbdd209fc78b0ec013915748b6bab # v0.0.2
 ```
 
 When the diff changes during the lifetime of a pull request,
@@ -36,12 +36,29 @@ If all changes are rolled back, the comment will be deleted.
 
 ### [Vela CI](https://go-vela.github.io/docs/usage/plugins) plugin
 
-_Coming soon_
+```yaml
+stages:
+  diff-poetry-lock:
+    steps:
+      - name: Post changed Poetry packages when poetry.lock changes
+        image: ghcr.io/target/diff-poetry-lock:v0.0.3
+        ruleset:
+          event: [ push ]
+          path: [ "poetry.lock" ]
+          continue: true
+        secrets:
+          # setup the secret, too!
+          - source: service_account_github_token
+            target: github_token
+        parameters:
+          github_token: ${GITHUB_TOKEN}
+          github_api_url: https://git.example.com/api/v3
+```
 
 ### Debug logging
 
 Set the `DEBUG_MODE` environment variable to `true` (or `1`, `yes`, `on`) to enable verbose debug logging.
-When unset, only informational and higher level log messages are emitted, reducing noise in CI logs.
+When unset, only informational and higher-level log messages are emitted, reducing noise in CI logs.
 
 ## History
 
