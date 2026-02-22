@@ -5,8 +5,7 @@ from requests import Response
 
 from diff_poetry_lock.settings import PrLookupConfigurable, Settings
 
-MAGIC_COMMENT_IDENTIFIER = "<!-- posted by Github Action nborrmann/diff-poetry-lock -->\n\n"
-MAGIC_BOT_USER_ID = 41898282
+MAGIC_COMMENT_IDENTIFIER = "<!-- posted by target/diff-poetry-lock -->\n\n"
 
 
 class GithubComment(BaseModel):
@@ -17,8 +16,8 @@ class GithubComment(BaseModel):
     id_: int = Field(alias="id")
     user: GithubUser
 
-    def is_bot_comment(self) -> bool:
-        return self.body.startswith(MAGIC_COMMENT_IDENTIFIER) and self.user.id_ == MAGIC_BOT_USER_ID
+    def is_diff_comment(self) -> bool:
+        return self.body.startswith(MAGIC_COMMENT_IDENTIFIER)
 
 
 class RepoFileRetrievalError(BaseException):
@@ -83,7 +82,7 @@ class GithubApi:
             all_comments.extend(comments)
             page += 1
         logger.debug("Found %d comments", len(all_comments))
-        return [c for c in all_comments if c.is_bot_comment()]
+        return [c for c in all_comments if c.is_diff_comment()]
 
     def get_file(self, ref: str) -> Response:
         logger.debug("Fetching {} from ref {}", self.s.lockfile_path, ref)
