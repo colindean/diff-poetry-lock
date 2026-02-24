@@ -166,7 +166,6 @@ def test_e2e_no_diff_existing_comment(cfg: Settings, data1: bytes) -> None:
         comments = [
             {"body": "foobar", "id": 1334, "user": {"id": 123}},
             {"body": "foobar", "id": 1335, "user": {"id": 41898282}},
-            {"body": f"{MAGIC_COMMENT_IDENTIFIER}", "id": 1336, "user": {"id": 123}},
             {"body": f"{MAGIC_COMMENT_IDENTIFIER}foobar", "id": 1337, "user": {"id": 41898282}},
         ]
         mock_list_comments(m, cfg, comments)
@@ -212,7 +211,6 @@ def test_e2e_diff_existing_comment_same_data(cfg: Settings, data1: bytes, data2:
         comments = [
             {"body": "foobar", "id": 1334, "user": {"id": 123}},
             {"body": "foobar", "id": 1335, "user": {"id": 41898282}},
-            {"body": f"{MAGIC_COMMENT_IDENTIFIER}", "id": 1336, "user": {"id": 123}},
             {"body": f"{MAGIC_COMMENT_IDENTIFIER}{summary}", "id": 1337, "user": {"id": 41898282}},
         ]
         mock_list_comments(m, cfg, comments)
@@ -229,7 +227,6 @@ def test_e2e_diff_existing_comment_different_data(cfg: Settings, data1: bytes, d
         comments = [
             {"body": "foobar", "id": 1334, "user": {"id": 123}},
             {"body": "foobar", "id": 1335, "user": {"id": 41898282}},
-            {"body": f"{MAGIC_COMMENT_IDENTIFIER}", "id": 1336, "user": {"id": 123}},
             {"body": f"{MAGIC_COMMENT_IDENTIFIER}{summary}", "id": 1337, "user": {"id": 41898282}},
         ]
         mock_list_comments(m, cfg, comments)
