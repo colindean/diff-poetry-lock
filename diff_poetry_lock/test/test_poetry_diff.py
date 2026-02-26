@@ -4,10 +4,13 @@ from textwrap import dedent
 from typing import Any
 
 import pytest
+import requests
 import requests_mock
 from _pytest.monkeypatch import MonkeyPatch
 from requests_mock import Mocker
 
+from diff_poetry_lock import __version__
+from diff_poetry_lock.github import GithubApi
 from diff_poetry_lock.github import MAGIC_COMMENT_IDENTIFIER
 from diff_poetry_lock.run_poetry import PackageSummary, diff, do_diff, format_comment, load_packages, main
 from diff_poetry_lock.settings import GitHubActionsSettings, Settings
@@ -77,12 +80,24 @@ def test_diff() -> None:
     expected_comment = """\
     ### Detected 3 changes to dependencies in Poetry lockfile
 
+    **Base commit hash (new poetry.lock):** `new-sha`
+    **Target commit hash (old poetry.lock):** `old-sha`
+    **diff-poetry-lock version:** `test-version`
+
     Removed **pydantic** (1.10.6)
     Removed **typing-extensions** (4.5.0)
     Updated **urllib3** (1.26.15 -> 1.26.14)
 
     *(0 added, 2 removed, 1 updated, 4 not changed)*"""
-    assert format_comment(summary) == dedent(expected_comment)
+    assert (
+        format_comment(
+            summary,
+            base_commit_hash="new-sha",
+            target_commit_hash="old-sha",
+            diff_poetry_lock_version="test-version",
+        )
+        == dedent(expected_comment)
+    )
 
 
 def test_diff_2() -> None:
@@ -105,12 +120,24 @@ def test_diff_2() -> None:
     expected_comment = """\
     ### Detected 3 changes to dependencies in Poetry lockfile
 
+    **Base commit hash (new poetry.lock):** `new-sha`
+    **Target commit hash (old poetry.lock):** `old-sha`
+    **diff-poetry-lock version:** `test-version`
+
     Added **pydantic** (1.10.6)
     Added **typing-extensions** (4.5.0)
     Updated **urllib3** (1.26.14 -> 1.26.15)
 
     *(2 added, 0 removed, 1 updated, 4 not changed)*"""
-    assert format_comment(summary) == dedent(expected_comment)
+    assert (
+        format_comment(
+            summary,
+            base_commit_hash="new-sha",
+            target_commit_hash="old-sha",
+            diff_poetry_lock_version="test-version",
+        )
+        == dedent(expected_comment)
+    )
 
 
 def test_diff_no_changes() -> None:
@@ -187,11 +214,18 @@ def test_e2e_no_diff_inexisting_comment(cfg: Settings, data1: bytes) -> None:
 
 
 def test_e2e_diff_inexisting_comment(cfg: Settings, data1: bytes, data2: bytes) -> None:
-    summary = format_comment(diff(load_packages(TESTFILE_2), load_packages(TESTFILE_1)))
+    summary = format_comment(
+        diff(load_packages(TESTFILE_2), load_packages(TESTFILE_1)),
+        base_commit_hash="new-sha",
+        target_commit_hash="old-sha",
+        diff_poetry_lock_version=__version__,
+    )
 
     with requests_mock.Mocker() as m:
         mock_get_file(m, cfg, data1, cfg.base_ref)
         mock_get_file(m, cfg, data2, cfg.ref)
+        mock_get_commit(m, cfg, cfg.ref, "new-sha")
+        mock_get_commit(m, cfg, cfg.base_ref, "old-sha")
         mock_list_comments(m, cfg, [])
         m.post(
             f"{cfg.api_url}/repos/{cfg.repository}/issues/{cfg.pr_num}/comments",
@@ -203,11 +237,18 @@ def test_e2e_diff_inexisting_comment(cfg: Settings, data1: bytes, data2: bytes) 
 
 
 def test_e2e_diff_existing_comment_same_data(cfg: Settings, data1: bytes, data2: bytes) -> None:
-    summary = format_comment(diff(load_packages(TESTFILE_1), load_packages(TESTFILE_2)))
+    summary = format_comment(
+        diff(load_packages(TESTFILE_1), load_packages(TESTFILE_2)),
+        base_commit_hash="new-sha",
+        target_commit_hash="old-sha",
+        diff_poetry_lock_version=__version__,
+    )
 
     with requests_mock.Mocker() as m:
         mock_get_file(m, cfg, data1, cfg.base_ref)
         mock_get_file(m, cfg, data2, cfg.ref)
+        mock_get_commit(m, cfg, cfg.ref, "new-sha")
+        mock_get_commit(m, cfg, cfg.base_ref, "old-sha")
         comments = [
             {"body": "foobar", "id": 1334, "user": {"id": 123}},
             {"body": "foobar", "id": 1335, "user": {"id": 41898282}},
@@ -219,11 +260,18 @@ def test_e2e_diff_existing_comment_same_data(cfg: Settings, data1: bytes, data2:
 
 
 def test_e2e_diff_existing_comment_different_data(cfg: Settings, data1: bytes, data2: bytes) -> None:
-    summary = format_comment(diff(load_packages(TESTFILE_1), []))
+    summary = format_comment(
+        diff(load_packages(TESTFILE_1), []),
+        base_commit_hash="new-sha",
+        target_commit_hash="old-sha",
+        diff_poetry_lock_version=__version__,
+    )
 
     with requests_mock.Mocker() as m:
         mock_get_file(m, cfg, data1, cfg.base_ref)
         mock_get_file(m, cfg, data2, cfg.ref)
+        mock_get_commit(m, cfg, cfg.ref, "new-sha")
+        mock_get_commit(m, cfg, cfg.base_ref, "old-sha")
         comments = [
             {"body": "foobar", "id": 1334, "user": {"id": 123}},
             {"body": "foobar", "id": 1335, "user": {"id": 41898282}},
@@ -237,6 +285,68 @@ def test_e2e_diff_existing_comment_different_data(cfg: Settings, data1: bytes, d
         )
 
         do_diff(cfg)
+
+
+def test_e2e_diff_commit_lookup_http_failure_falls_back_to_ref(cfg: Settings, data1: bytes, data2: bytes) -> None:
+    summary = format_comment(
+        diff(load_packages(TESTFILE_2), load_packages(TESTFILE_1)),
+        base_commit_hash=cfg.ref,
+        target_commit_hash=cfg.base_ref,
+        diff_poetry_lock_version=__version__,
+    )
+
+    with requests_mock.Mocker() as m:
+        mock_get_file(m, cfg, data1, cfg.base_ref)
+        mock_get_file(m, cfg, data2, cfg.ref)
+        m.get(
+            f"{cfg.api_url}/repos/{cfg.repository}/commits/{cfg.ref}",
+            headers={"Authorization": f"Bearer {cfg.token}", "Accept": "application/vnd.github.raw"},
+            status_code=500,
+        )
+        m.get(
+            f"{cfg.api_url}/repos/{cfg.repository}/commits/{cfg.base_ref}",
+            headers={"Authorization": f"Bearer {cfg.token}", "Accept": "application/vnd.github.raw"},
+            status_code=500,
+        )
+        mock_list_comments(m, cfg, [])
+        m.post(
+            f"{cfg.api_url}/repos/{cfg.repository}/issues/{cfg.pr_num}/comments",
+            headers={"Authorization": f"Bearer {cfg.token}", "Accept": "application/vnd.github.raw"},
+            json={"body": f"{MAGIC_COMMENT_IDENTIFIER}{summary}"},
+        )
+
+        do_diff(cfg)
+
+
+def test_resolve_commit_hash_request_exception_returns_ref(cfg: Settings, monkeypatch: MonkeyPatch) -> None:
+    api = GithubApi(cfg)
+
+    def raise_timeout(*_args: object, **_kwargs: object):
+        raise requests.Timeout()
+
+    monkeypatch.setattr(api.session, "get", raise_timeout)
+
+    assert api.resolve_commit_hash(cfg.ref) == cfg.ref
+
+
+def test_resolve_commit_hash_invalid_json_returns_ref(cfg: Settings, monkeypatch: MonkeyPatch) -> None:
+    api = GithubApi(cfg)
+
+    class MockResponse:
+        status_code = 200
+
+        @staticmethod
+        def raise_for_status() -> None:
+            return None
+
+        @staticmethod
+        def json() -> dict[str, str]:
+            msg = "invalid json"
+            raise ValueError(msg)
+
+    monkeypatch.setattr(api.session, "get", lambda *_args, **_kwargs: MockResponse())
+
+    assert api.resolve_commit_hash(cfg.ref) == cfg.ref
 
 
 def load_file(filename: Path) -> bytes:
@@ -257,6 +367,14 @@ def mock_get_file(m: Mocker, s: Settings, data: bytes, ref: str) -> None:
         f"{s.api_url}/repos/{s.repository}/contents/{s.lockfile_path}?ref={ref}",
         headers={"Authorization": f"Bearer {s.token}", "Accept": "application/vnd.github.raw"},
         content=data,
+    )
+
+
+def mock_get_commit(m: Mocker, s: Settings, ref: str, sha: str) -> None:
+    m.get(
+        f"{s.api_url}/repos/{s.repository}/commits/{ref}",
+        headers={"Authorization": f"Bearer {s.token}", "Accept": "application/vnd.github.raw"},
+        json={"sha": sha},
     )
 
 
