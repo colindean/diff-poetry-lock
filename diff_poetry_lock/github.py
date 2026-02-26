@@ -101,6 +101,24 @@ class GithubApi:
         r.raise_for_status()
         return r
 
+    def resolve_commit_hash(self, ref: str) -> str:
+        logger.debug("Resolving commit hash for ref {}", ref)
+        try:
+            r = self.session.get(
+                f"{self.s.api_url}/repos/{self.s.repository}/commits/{ref}",
+                headers={"Authorization": f"token {self.s.token}", "Accept": "application/vnd.github+json"},
+                timeout=10,
+            )
+            logger.debug("Response status: {}", r.status_code)
+            r.raise_for_status()
+            sha = str(r.json().get("sha", "")).strip()
+            if sha:
+                return sha
+        except Exception:
+            logger.warning("Failed to resolve commit hash for ref {}, falling back to ref", ref)
+
+        return ref
+
     def delete_comment(self, comment_id: int) -> None:
         logger.debug("Deleting comment {}", comment_id)
         r = self.session.delete(

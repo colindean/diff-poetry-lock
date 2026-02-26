@@ -7,6 +7,7 @@ from loguru import logger
 from poetry.core.packages.package import Package
 from poetry.packages import Locker
 
+from diff_poetry_lock import __version__
 from diff_poetry_lock.github import GithubApi
 from diff_poetry_lock.logging_utils import configure_logging
 from diff_poetry_lock.settings import Settings, determine_and_load_settings
@@ -79,7 +80,12 @@ def post_comment(api: GithubApi, comment: str | None) -> None:
     api.upsert_comment(existing_comment, comment)
 
 
-def format_comment(packages: list[PackageSummary]) -> str | None:
+def format_comment(
+    packages: list[PackageSummary],
+    base_commit_hash: str | None = None,
+    target_commit_hash: str | None = None,
+    diff_poetry_lock_version: str | None = None,
+) -> str | None:
     added = sorted([p for p in packages if p.added()], key=attrgetter("name"))
     removed = sorted([p for p in packages if p.removed()], key=attrgetter("name"))
     updated = sorted([p for p in packages if p.updated()], key=attrgetter("name"))
@@ -89,6 +95,10 @@ def format_comment(packages: list[PackageSummary]) -> str | None:
         return None
 
     comment = f"### Detected {len(added + removed + updated)} changes to dependencies in Poetry lockfile\n\n"
+    if base_commit_hash and target_commit_hash and diff_poetry_lock_version:
+        comment += f"**Base commit hash (new poetry.lock):** `{base_commit_hash}`\n"
+        comment += f"**Target commit hash (old poetry.lock):** `{target_commit_hash}`\n"
+        comment += f"**diff-poetry-lock version:** `{diff_poetry_lock_version}`\n\n"
     comment += "\n".join(p.summary_line() for p in added + removed + updated)
     comment += (
         f"\n\n*({len(added)} added, {len(removed)} removed, {len(updated)} updated, {len(not_changed)} not changed)*"
@@ -128,7 +138,18 @@ def do_diff(settings: Settings) -> None:
 
     logger.debug("Computing diff...")
     packages = diff(base_packages, head_packages)
-    summary = format_comment(packages)
+
+    if not any(package.changed() for package in packages):
+        summary = None
+    else:
+        base_commit_hash = api.resolve_commit_hash(settings.ref)
+        target_commit_hash = api.resolve_commit_hash(settings.base_ref)
+        summary = format_comment(
+            packages,
+            base_commit_hash=base_commit_hash,
+            target_commit_hash=target_commit_hash,
+            diff_poetry_lock_version=__version__,
+        )
 
     if summary:
         logger.debug("Generated summary with {} characters", len(summary))

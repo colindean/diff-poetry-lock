@@ -16,7 +16,22 @@ This friction complicates the responsible acceptance of pull requests that chang
 
 ## Example
 
-<img width="916" alt="image" src="https://user-images.githubusercontent.com/1723176/224580589-bd5e7a5f-e39f-40d3-91a2-b4bd02284100.png">
+```markdown
+### Detected 6 changes to dependencies in Poetry lockfile
+
+**Base commit hash (new poetry.lock):** `f4e6ca0f4d67d9bb3f8ab43a89ceca2d0d2be7a1`
+**Target commit hash (old poetry.lock):** `a86b84f85d0bb2bf2fca6d6e8c58f2ce6f9e393c`
+**diff-poetry-lock version:** `1.0.1`
+
+Added **pydantic** (1.10.6)
+Added **requests-mock** (1.10.0)
+Added **six** (1.16.0)
+Added **tomli** (2.0.1)
+Added **typing-extensions** (4.5.0)
+Updated **urllib3** (1.26.14 -> 1.26.15)
+
+*(5 added, 0 removed, 1 updated, 4 not changed)*
+```
 
 ## Usage
 
