@@ -89,15 +89,12 @@ def test_diff() -> None:
     Updated **urllib3** (1.26.15 -> 1.26.14)
 
     *(0 added, 2 removed, 1 updated, 4 not changed)*"""
-    assert (
-        format_comment(
-            summary,
-            base_commit_hash="new-sha",
-            target_commit_hash="old-sha",
-            diff_poetry_lock_version="test-version",
-        )
-        == dedent(expected_comment)
-    )
+    assert format_comment(
+        summary,
+        base_commit_hash="new-sha",
+        target_commit_hash="old-sha",
+        diff_poetry_lock_version="test-version",
+    ) == dedent(expected_comment)
 
 
 def test_diff_2() -> None:
@@ -129,15 +126,12 @@ def test_diff_2() -> None:
     Updated **urllib3** (1.26.14 -> 1.26.15)
 
     *(2 added, 0 removed, 1 updated, 4 not changed)*"""
-    assert (
-        format_comment(
-            summary,
-            base_commit_hash="new-sha",
-            target_commit_hash="old-sha",
-            diff_poetry_lock_version="test-version",
-        )
-        == dedent(expected_comment)
-    )
+    assert format_comment(
+        summary,
+        base_commit_hash="new-sha",
+        target_commit_hash="old-sha",
+        diff_poetry_lock_version="test-version",
+    ) == dedent(expected_comment)
 
 
 def test_diff_no_changes() -> None:
