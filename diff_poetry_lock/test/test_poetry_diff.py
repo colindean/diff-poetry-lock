@@ -1,7 +1,7 @@
 from operator import attrgetter
 from pathlib import Path
 from textwrap import dedent
-from typing import Any
+from typing import Any, Never
 
 import pytest
 import requests
@@ -10,8 +10,7 @@ from _pytest.monkeypatch import MonkeyPatch
 from requests_mock import Mocker
 
 from diff_poetry_lock import __version__
-from diff_poetry_lock.github import GithubApi
-from diff_poetry_lock.github import MAGIC_COMMENT_IDENTIFIER
+from diff_poetry_lock.github import MAGIC_COMMENT_IDENTIFIER, GithubApi
 from diff_poetry_lock.run_poetry import PackageSummary, diff, do_diff, format_comment, load_packages, main
 from diff_poetry_lock.settings import GitHubActionsSettings, Settings
 
@@ -315,8 +314,8 @@ def test_e2e_diff_commit_lookup_http_failure_falls_back_to_ref(cfg: Settings, da
 def test_resolve_commit_hash_request_exception_returns_ref(cfg: Settings, monkeypatch: MonkeyPatch) -> None:
     api = GithubApi(cfg)
 
-    def raise_timeout(*_args: object, **_kwargs: object):
-        raise requests.Timeout()
+    def raise_timeout(*_args: object, **_kwargs: object) -> Never:
+        raise requests.Timeout
 
     monkeypatch.setattr(api.session, "get", raise_timeout)
 
