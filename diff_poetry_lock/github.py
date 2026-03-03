@@ -1,7 +1,8 @@
+import base64
+
 import requests
 from loguru import logger
 from pydantic import BaseModel, Field, parse_obj_as
-from requests import Response
 
 from diff_poetry_lock.settings import PrLookupConfigurable, Settings
 
@@ -30,6 +31,7 @@ class GithubApi:
     def __init__(self, settings: Settings) -> None:
         self.s = settings
         self.session = requests.session()
+        self._ref_hash_cache: dict[str, str] = {}
         if isinstance(self.s, PrLookupConfigurable):
             self.s.set_pr_lookup_service(self)
 
@@ -45,7 +47,7 @@ class GithubApi:
         logger.debug("Posting comment to PR #{}", self.s.pr_num)
         r = self.session.post(
             f"{self.s.api_url}/repos/{self.s.repository}/issues/{self.s.pr_num}/comments",
-            headers={"Authorization": f"token {self.s.token}", "Accept": "application/vnd.github+json"},
+            headers=self.api_headers(),
             json={"body": f"{MAGIC_COMMENT_IDENTIFIER}{comment}"},
             timeout=10,
         )
@@ -56,7 +58,7 @@ class GithubApi:
         logger.debug("Updating comment {}", comment_id)
         r = self.session.patch(
             f"{self.s.api_url}/repos/{self.s.repository}/issues/comments/{comment_id}",
-            headers={"Authorization": f"token {self.s.token}", "Accept": "application/vnd.github+json"},
+            headers=self.api_headers(),
             json={"body": f"{MAGIC_COMMENT_IDENTIFIER}{comment}"},
             timeout=10,
         )
@@ -74,7 +76,7 @@ class GithubApi:
             r = self.session.get(
                 f"{self.s.api_url}/repos/{self.s.repository}/issues/{self.s.pr_num}/comments",
                 params={"per_page": 100, "page": page},
-                headers={"Authorization": f"token {self.s.token}", "Accept": "application/vnd.github+json"},
+                headers=self.api_headers(),
                 timeout=10,
             )
             r.raise_for_status()
@@ -84,46 +86,47 @@ class GithubApi:
         logger.debug("Found %d comments", len(all_comments))
         return [c for c in all_comments if c.is_diff_comment()]
 
-    def get_file(self, ref: str) -> Response:
+    def get_file(self, ref: str) -> bytes:
         logger.debug("Fetching {} from ref {}", self.s.lockfile_path, ref)
 
         r = self.session.get(
             f"{self.s.api_url}/repos/{self.s.repository}/contents/{self.s.lockfile_path}",
             params={"ref": ref},
-            headers={"Authorization": f"token {self.s.token}", "Accept": "application/vnd.github.raw"},
+            headers=self.api_headers(),
             timeout=10,
-            stream=True,
         )
         logger.debug("Response status: {}", r.status_code)
 
         if r.status_code == 404:
             raise FileNotFoundError(self.s.lockfile_path) from RepoFileRetrievalError(self.s.repository, ref)
         r.raise_for_status()
-        return r
+        file_obj = r.json()
+
+        resolved_hash = str(file_obj.get("sha", "")).strip()
+        if resolved_hash:
+            self._ref_hash_cache[ref] = resolved_hash
+            logger.debug("Cached commit hash for ref {} from contents sha", ref)
+
+        encoded_content = file_obj.get("content", "")
+        if not isinstance(encoded_content, str):
+            msg = "Invalid content returned from GitHub contents API"
+            raise TypeError(msg)
+
+        return base64.b64decode(encoded_content)
 
     def resolve_commit_hash(self, ref: str) -> str:
-        logger.debug("Resolving commit hash for ref {}", ref)
-        try:
-            r = self.session.get(
-                f"{self.s.api_url}/repos/{self.s.repository}/commits/{ref}",
-                headers={"Authorization": f"token {self.s.token}", "Accept": "application/vnd.github+json"},
-                timeout=10,
-            )
-            logger.debug("Response status: {}", r.status_code)
-            r.raise_for_status()
-            sha = str(r.json().get("sha", "")).strip()
-            if sha:
-                return sha
-        except Exception:
-            logger.warning("Failed to resolve commit hash for ref {}, falling back to ref", ref)
+        if cached_hash := self._ref_hash_cache.get(ref):
+            logger.debug("Using cached commit hash for ref {}", ref)
+            return cached_hash
 
+        logger.warning("No cached commit hash for ref {}, falling back to ref", ref)
         return ref
 
     def delete_comment(self, comment_id: int) -> None:
         logger.debug("Deleting comment {}", comment_id)
         r = self.session.delete(
             f"{self.s.api_url}/repos/{self.s.repository}/issues/comments/{comment_id}",
-            headers={"Authorization": f"token {self.s.token}", "Accept": "application/vnd.github+json"},
+            headers=self.api_headers(),
         )
         logger.debug("Response status: {}", r.status_code)
         r.raise_for_status()
@@ -140,7 +143,7 @@ class GithubApi:
         r = self.session.get(
             f"{self.s.api_url}/repos/{self.s.repository}/pulls",
             params={"head": head, "state": "open"},
-            headers={"Authorization": f"token {self.s.token}", "Accept": "application/vnd.github+json"},
+            headers=self.api_headers(),
             timeout=10,
         )
         logger.debug("Response status: {}", r.status_code)
@@ -154,6 +157,9 @@ class GithubApi:
 
         logger.debug("No open PR found for branch {}", branch)
         return ""
+
+    def api_headers(self) -> dict[str, str]:
+        return {"Authorization": f"token {self.s.token}", "Accept": "application/vnd.github+json"}
 
     def upsert_comment(self, existing_comment: GithubComment | None, comment: str | None) -> None:
         if existing_comment is None and comment is None:
