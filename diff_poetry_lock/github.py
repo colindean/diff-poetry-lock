@@ -159,7 +159,11 @@ class GithubApi:
         return ""
 
     def api_headers(self) -> dict[str, str]:
-        return {"Authorization": f"token {self.s.token}", "Accept": "application/vnd.github+json"}
+        return self.request_headers(self.s.token)
+
+    @staticmethod
+    def request_headers(token: str) -> dict[str, str]:
+        return {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
 
     def upsert_comment(self, existing_comment: GithubComment | None, comment: str | None) -> None:
         if existing_comment is None and comment is None:
