@@ -93,7 +93,8 @@ def test_diff() -> None:
             summary,
             base_commit_hash="new-sha",
             target_commit_hash="old-sha",
-        ) or ""
+        )
+        or ""
     ).strip() == dedent(expected_comment).strip()
 
 
@@ -130,7 +131,8 @@ def test_diff_2() -> None:
             summary,
             base_commit_hash="new-sha",
             target_commit_hash="old-sha",
-        ) or ""
+        )
+        or ""
     ).strip() == dedent(expected_comment).strip()
 
 
