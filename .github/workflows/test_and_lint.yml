@@ -40,6 +40,9 @@ jobs:
     runs-on: ubuntu-latest
     name: Dogfooding main
     continue-on-error: true
+    permissions:
+      contents: read
+      issues: write
     steps:
       - name: Checkout
         if: '!inputs.skip-checkout'
