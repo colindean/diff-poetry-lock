@@ -1,6 +1,6 @@
 from collections.abc import Iterable, Mapping
 from functools import reduce
-from typing import TypeVar
+from typing import TypeVar, cast
 
 Key = TypeVar("Key")
 
@@ -12,5 +12,5 @@ def get_nested(
     return reduce(
         lambda current, key: (current.get(key) if isinstance(current, Mapping) else None),
         keys,
-        d,
+        cast(object, d),
     )

@@ -105,10 +105,10 @@ def test_request_headers_method() -> None:
     assert headers["Accept"] == "application/vnd.github+json"
 
 
-def graphql_url_examples():
-    examples = [("https://api.github.com", "https://api.github.com/graphql")]
+def graphql_url_examples() -> list[tuple[str, str]]:
+    examples: list[tuple[str, str]] = [("https://api.github.com", "https://api.github.com/graphql")]
     if ghes := os.environ.get("GITHUB_API_URL"):
-        examples += (ghes, ghes.replace("v3", "graphql"))
+        examples.append((ghes, ghes.replace("v3", "graphql")))
     return examples
 
 
