@@ -93,7 +93,7 @@ class GithubApi:
         r = self.session.get(
             f"{self.s.api_url}/repos/{self.s.repository}/contents/{self.s.lockfile_path}",
             params={"ref": ref},
-            headers={"Authorization": f"token {self.s.token}", "Accept": "application/vnd.github.raw"},
+            headers=self.raw_api_headers(),
             timeout=10,
             stream=True,
         )
@@ -211,6 +211,13 @@ class GithubApi:
     @staticmethod
     def request_headers(token: str) -> dict[str, str]:
         return {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+
+    def raw_api_headers(self) -> dict[str, str]:
+        return self.raw_request_headers(self.s.token)
+
+    @staticmethod
+    def raw_request_headers(token: str) -> dict[str, str]:
+        return {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.raw"}
 
     def upsert_comment(self, existing_comment: GithubComment | None, comment: str | None) -> None:
         if existing_comment is None and comment is None:
