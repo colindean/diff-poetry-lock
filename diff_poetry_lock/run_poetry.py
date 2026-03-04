@@ -111,7 +111,8 @@ def format_comment(
 def load_lockfile(api: GithubApi, ref: str) -> list[Package]:
     file_contents = api.get_file(ref)
     with tempfile.NamedTemporaryFile(mode="wb", delete=True) as f:
-        f.write(file_contents)
+        for chunk in file_contents.iter_content(chunk_size=1024):
+            f.write(chunk)
         f.flush()
 
         return load_packages(Path(f.name))

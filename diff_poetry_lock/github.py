@@ -1,9 +1,9 @@
-import base64
 from urllib.parse import urlparse
 
 import requests
 from loguru import logger
 from pydantic import BaseModel, Field, parse_obj_as
+from requests import Response
 
 from diff_poetry_lock.settings import PrLookupConfigurable, Settings
 
@@ -87,28 +87,22 @@ class GithubApi:
         logger.debug("Found %d comments", len(all_comments))
         return [c for c in all_comments if c.is_diff_comment()]
 
-    def get_file(self, ref: str) -> bytes:
+    def get_file(self, ref: str) -> Response:
         logger.debug("Fetching {} from ref {}", self.s.lockfile_path, ref)
 
         r = self.session.get(
             f"{self.s.api_url}/repos/{self.s.repository}/contents/{self.s.lockfile_path}",
             params={"ref": ref},
-            headers=self.api_headers(),
+            headers={"Authorization": f"token {self.s.token}", "Accept": "application/vnd.github.raw"},
             timeout=10,
+            stream=True,
         )
         logger.debug("Response status: {}", r.status_code)
 
         if r.status_code == 404:
             raise FileNotFoundError(self.s.lockfile_path) from RepoFileRetrievalError(self.s.repository, ref)
         r.raise_for_status()
-        file_obj = r.json()
-
-        encoded_content = file_obj.get("content", "")
-        if not isinstance(encoded_content, str):
-            msg = "Invalid content returned from GitHub contents API"
-            raise TypeError(msg)
-
-        return base64.b64decode(encoded_content)
+        return r
 
     def resolve_commit_hashes(self, head_ref: str, base_ref: str) -> tuple[str, str]:
         cached_head_hash = self._ref_hash_cache.get(head_ref)

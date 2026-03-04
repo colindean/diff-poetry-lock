@@ -1,4 +1,3 @@
-import base64
 from operator import attrgetter
 from pathlib import Path
 from textwrap import dedent
@@ -180,7 +179,7 @@ def test_file_loading_missing_file_base_ref(cfg: Settings) -> None:
     with requests_mock.Mocker() as m:
         m.get(
             f"{cfg.api_url}/repos/{cfg.repository}/contents/{cfg.lockfile_path}?ref={cfg.base_ref}",
-            request_headers=GithubApi.request_headers(cfg.token),
+            request_headers={"Authorization": f"token {cfg.token}", "Accept": "application/vnd.github.raw"},
             status_code=404,
         )
 
@@ -193,7 +192,7 @@ def test_file_loading_missing_file_head_ref(cfg: Settings, data1: bytes) -> None
         mock_get_file(m, cfg, data1, cfg.base_ref)
         m.get(
             f"{cfg.api_url}/repos/{cfg.repository}/contents/{cfg.lockfile_path}?ref={cfg.ref}",
-            request_headers=GithubApi.request_headers(cfg.token),
+            request_headers={"Authorization": f"token {cfg.token}", "Accept": "application/vnd.github.raw"},
             status_code=404,
         )
 
@@ -335,17 +334,13 @@ def mock_list_comments(m: Mocker, s: Settings, response_json: list[dict[Any, Any
 
 
 def mock_get_file(m: Mocker, s: Settings, data: bytes, ref: str, resolved_hash: str | None = None) -> None:
-    payload: dict[str, str] = {
-        "content": base64.b64encode(data).decode("ascii"),
-        "encoding": "base64",
-    }
-    if resolved_hash:
-        payload["sha"] = resolved_hash
-
+    # The API is requested with Accept: application/vnd.github.raw and should
+    # return the raw lockfile bytes. Return the raw bytes as the response body
+    # so the code under test can stream/write it to a temp file.
     m.get(
         f"{s.api_url}/repos/{s.repository}/contents/{s.lockfile_path}?ref={ref}",
-        request_headers=GithubApi.request_headers(s.token),
-        json=payload,
+        request_headers={"Authorization": f"token {s.token}", "Accept": "application/vnd.github.raw"},
+        content=data,
     )
 
 
