@@ -1,3 +1,4 @@
+from enum import Enum
 from urllib.parse import urlparse
 
 import requests
@@ -6,6 +7,7 @@ from pydantic import BaseModel, Field, parse_obj_as
 from requests import Response
 
 from diff_poetry_lock.settings import PrLookupConfigurable, Settings
+from diff_poetry_lock.utils import get_nested
 
 MAGIC_COMMENT_IDENTIFIER = "<!-- posted by target/diff-poetry-lock -->\n\n"
 
@@ -48,7 +50,7 @@ class GithubApi:
         logger.debug("Posting comment to PR #{}", self.s.pr_num)
         r = self.session.post(
             f"{self.s.api_url}/repos/{self.s.repository}/issues/{self.s.pr_num}/comments",
-            headers=self.api_headers(),
+            headers=GithubApi.Headers.JSON.headers(self.s.token),
             json={"body": f"{MAGIC_COMMENT_IDENTIFIER}{comment}"},
             timeout=10,
         )
@@ -59,7 +61,7 @@ class GithubApi:
         logger.debug("Updating comment {}", comment_id)
         r = self.session.patch(
             f"{self.s.api_url}/repos/{self.s.repository}/issues/comments/{comment_id}",
-            headers=self.api_headers(),
+            headers=GithubApi.Headers.JSON.headers(self.s.token),
             json={"body": f"{MAGIC_COMMENT_IDENTIFIER}{comment}"},
             timeout=10,
         )
@@ -77,7 +79,7 @@ class GithubApi:
             r = self.session.get(
                 f"{self.s.api_url}/repos/{self.s.repository}/issues/{self.s.pr_num}/comments",
                 params={"per_page": 100, "page": page},
-                headers=self.api_headers(),
+                headers=GithubApi.Headers.JSON.headers(self.s.token),
                 timeout=10,
             )
             r.raise_for_status()
@@ -93,7 +95,7 @@ class GithubApi:
         r = self.session.get(
             f"{self.s.api_url}/repos/{self.s.repository}/contents/{self.s.lockfile_path}",
             params={"ref": ref},
-            headers=self.raw_api_headers(),
+            headers=GithubApi.Headers.RAW.headers(self.s.token),
             timeout=10,
             stream=True,
         )
@@ -130,7 +132,7 @@ class GithubApi:
         try:
             r = self.session.post(
                 self.graphql_url(),
-                headers=self.api_headers(),
+                headers=GithubApi.Headers.JSON.headers(self.s.token),
                 json={"query": query, "variables": variables},
                 timeout=10,
             )
@@ -139,8 +141,8 @@ class GithubApi:
             response_json = r.json()
 
             repo_data = response_json.get("data", {}).get("repository", {})
-            resolved_head_hash = str(((repo_data.get("head") or {}).get("target") or {}).get("oid", "")).strip()
-            resolved_base_hash = str(((repo_data.get("base") or {}).get("target") or {}).get("oid", "")).strip()
+            resolved_head_hash = str(get_nested(repo_data, ("head", "target", "oid")) or "").strip()
+            resolved_base_hash = str(get_nested(repo_data, ("base", "target", "oid")) or "").strip()
             if resolved_head_hash:
                 self._ref_hash_cache[head_ref] = resolved_head_hash
             if resolved_base_hash:
@@ -173,7 +175,7 @@ class GithubApi:
         logger.debug("Deleting comment {}", comment_id)
         r = self.session.delete(
             f"{self.s.api_url}/repos/{self.s.repository}/issues/comments/{comment_id}",
-            headers=self.api_headers(),
+            headers=GithubApi.Headers.JSON.headers(self.s.token),
         )
         logger.debug("Response status: {}", r.status_code)
         r.raise_for_status()
@@ -190,7 +192,7 @@ class GithubApi:
         r = self.session.get(
             f"{self.s.api_url}/repos/{self.s.repository}/pulls",
             params={"head": head, "state": "open"},
-            headers=self.api_headers(),
+            headers=GithubApi.Headers.JSON.headers(self.s.token),
             timeout=10,
         )
         logger.debug("Response status: {}", r.status_code)
@@ -205,19 +207,18 @@ class GithubApi:
         logger.debug("No open PR found for branch {}", branch)
         return ""
 
-    def api_headers(self) -> dict[str, str]:
-        return self.request_headers(self.s.token)
+    class Headers(Enum):
+        """Enum for github api content types."""
 
-    @staticmethod
-    def request_headers(token: str) -> dict[str, str]:
-        return {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+        class ContentType(Enum):
+            JSON = "application/vnd.github+json"
+            RAW = "application/vnd.github.raw"
 
-    def raw_api_headers(self) -> dict[str, str]:
-        return self.raw_request_headers(self.s.token)
+        JSON = ContentType.JSON
+        RAW = ContentType.RAW
 
-    @staticmethod
-    def raw_request_headers(token: str) -> dict[str, str]:
-        return {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.raw"}
+        def headers(self, token: str) -> dict[str, str]:
+            return {"Authorization": f"Bearer {token}", "Accept": self.value.value}
 
     def upsert_comment(self, existing_comment: GithubComment | None, comment: str | None) -> None:
         if existing_comment is None and comment is None:
