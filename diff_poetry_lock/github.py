@@ -210,15 +210,11 @@ class GithubApi:
     class Headers(Enum):
         """Enum for github api content types."""
 
-        class ContentType(Enum):
-            JSON = "application/vnd.github+json"
-            RAW = "application/vnd.github.raw"
-
-        JSON = ContentType.JSON
-        RAW = ContentType.RAW
+        JSON = "application/vnd.github+json"
+        RAW = "application/vnd.github.raw"
 
         def headers(self, token: str) -> dict[str, str]:
-            return {"Authorization": f"Bearer {token}", "Accept": self.value.value}
+            return {"Authorization": f"Bearer {token}", "Accept": self.value}
 
     def upsert_comment(self, existing_comment: GithubComment | None, comment: str | None) -> None:
         if existing_comment is None and comment is None:

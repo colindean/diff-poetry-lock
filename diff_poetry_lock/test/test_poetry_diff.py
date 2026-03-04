@@ -107,8 +107,10 @@ def test_request_headers_method() -> None:
 
 def graphql_url_examples() -> list[tuple[str, str]]:
     examples: list[tuple[str, str]] = [("https://api.github.com", "https://api.github.com/graphql")]
-    if ghes := os.environ.get("GITHUB_API_URL"):
-        examples.append((ghes, ghes.replace("v3", "graphql")))
+    if ghes := os.environ.get("PARAMETER_GITHUB_API_URL"):
+        replaced = ghes.replace("v3", "graphql")
+        if replaced != ghes:
+            examples.append((ghes, replaced))
     return examples
 
 
@@ -339,9 +341,6 @@ def mock_list_comments(m: Mocker, s: Settings, response_json: list[dict[Any, Any
 
 
 def mock_get_file(m: Mocker, s: Settings, data: bytes, ref: str, resolved_hash: str | None = None) -> None:
-    # The API is requested with Accept: application/vnd.github.raw and should
-    # return the raw lockfile bytes. Return the raw bytes as the response body
-    # so the code under test can stream/write it to a temp file.
     m.get(
         f"{s.api_url}/repos/{s.repository}/contents/{s.lockfile_path}?ref={ref}",
         request_headers=GithubApi.Headers.RAW.headers(s.token),
