@@ -111,7 +111,8 @@ def format_comment(
 def load_lockfile(api: GithubApi, ref: str) -> list[Package]:
     file_contents = api.get_file(ref)
     with tempfile.NamedTemporaryFile(mode="wb", delete=True) as f:
-        f.write(file_contents)
+        for chunk in file_contents.iter_content(chunk_size=1024):
+            f.write(chunk)
         f.flush()
 
         return load_packages(Path(f.name))
@@ -142,8 +143,7 @@ def do_diff(settings: Settings) -> None:
     if not any(package.changed() for package in packages):
         summary = None
     else:
-        base_commit_hash = api.resolve_commit_hash(settings.ref)
-        target_commit_hash = api.resolve_commit_hash(settings.base_ref)
+        target_commit_hash, base_commit_hash = api.resolve_commit_hashes(settings.ref, settings.base_ref)
         summary = format_comment(
             packages,
             base_commit_hash=base_commit_hash,
