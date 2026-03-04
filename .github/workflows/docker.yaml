@@ -1,0 +1,282 @@
+name: Docker
+# based on https://github.com/Homebrew/brew/blob/fab1894af8c5377430a5978a08ae7b0eced61cad/.github/workflows/docker.yml
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  merge_group:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+  packages: write
+
+defaults:
+  run:
+    shell: bash -xeuo pipefail {0}
+
+env:
+  # Add more Ubuntu versions, drop when security EOL (https://endoflife.date/ubuntu) or they don't work
+  VERSIONS: '["24.04"]'
+  # Set what Ubuntu version constitutes ghcr.io/target/diff-poetry-lock:${app_version}
+  PRIMARY_VERSION: "24.04"
+
+jobs:
+  generate-tags:
+    if: github.repository_owner == 'target'
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.attributes.outputs.matrix }}
+      tags: ${{ steps.attributes.outputs.tags }}
+      labels: ${{ steps.attributes.outputs.labels }}
+      push: ${{ steps.attributes.outputs.push }}
+      merge: ${{ steps.attributes.outputs.merge }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch origin/HEAD from Git
+        run: git fetch origin HEAD
+
+      - name: Determine build attributes
+        id: attributes
+        run: |
+          date="$(date --rfc-3339=seconds --utc)"
+          app_version="$(git describe --tags --dirty --abbrev=7)"
+
+          DELIMITER="END_LABELS_$(uuidgen)"
+          cat <<EOS | tee -a "${GITHUB_OUTPUT}"
+          labels<<${DELIMITER}
+          org.opencontainers.image.created=${date}
+          org.opencontainers.image.url=https://github.com/target/diff-poetry-lock
+          org.opencontainers.image.documentation=https://github.com/target/diff-poetry-lock
+          org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}
+          org.opencontainers.image.version=${app_version}
+          org.opencontainers.image.revision=${GITHUB_SHA}
+          org.opencontainers.image.vendor=${GITHUB_REPOSITORY_OWNER}
+          org.opencontainers.image.licenses=MIT
+          ${DELIMITER}
+          EOS
+
+          typeset -A tag_hash
+          typeset -A push_hash
+          matrix=()
+          merge=false
+          while IFS=$'\n' read -r version; do
+            tags=()
+            if [[ "${GITHUB_EVENT_NAME}" == "release" ]]; then
+              tags+=(
+                "ghcr.io/target/diff-poetry-lock/ubuntu${version}:${app_version}"
+                "ghcr.io/target/diff-poetry-lock/ubuntu${version}:latest"
+              )
+              if [[ "${version}" == "${PRIMARY_VERSION}" ]]; then
+                tags+=(
+                  "ghcr.io/target/diff-poetry-lock:${app_version}"
+                  "ghcr.io/target/diff-poetry-lock:latest"
+                )
+              fi
+            elif [[ "${GITHUB_EVENT_NAME}" == "push" &&
+                    ("${GITHUB_REF}" == "refs/heads/main") &&
+                    "${version}" == "${PRIMARY_VERSION}" ]]; then
+              tags+=(
+                "ghcr.io/target/diff-poetry-lock:main"
+                "ghcr.io/target/diff-poetry-lock/ubuntu${version}:main"
+              )
+            fi
+
+            if [[ "${#tags[@]}" -ne 0 ]]; then
+              tags_as_json_array="$(
+                jq --null-input --compact-output '$ARGS.positional' --args "${tags[@]}"
+              )"
+              tag_hash["${version}"]="${tags_as_json_array}"
+              push_hash["${version}"]=true
+              merge=true
+              matrix+=("${version}")
+            else
+              push_hash["${version}"]=false
+            fi
+          done <<<"$(jq --raw-output '.[]' <<<"${VERSIONS}")"
+
+          # Transform the `matrix` variable into a JSON array.
+          echo "matrix=$(jq --null-input --compact-output '$ARGS.positional' --args "${matrix[@]}")" >>"${GITHUB_OUTPUT}"
+          echo "merge=${merge}" >>"${GITHUB_OUTPUT}"
+
+          {
+            DELIMITER="END_TAGS_$(uuidgen)"
+            has_previous=
+            echo "tags<<${DELIMITER}"
+            printf '{'
+            for version in "${!tag_hash[@]}"; do
+              [[ -n "${has_previous:-}" ]] && printf ','
+              printf '"%s": %s' "${version}" "${tag_hash[$version]}"
+              has_previous=1
+            done
+            echo '}'
+            echo "${DELIMITER}"
+          } | tee -a "${GITHUB_OUTPUT}"
+
+          {
+            DELIMITER="END_PUSH_$(uuidgen)"
+            has_previous=
+            echo "push<<${DELIMITER}"
+            printf '{'
+            for version in "${!push_hash[@]}"; do
+              [[ -n "${has_previous:-}" ]] && printf ','
+              printf '"%s": %s' "${version}" "${push_hash[$version]}"
+              has_previous=1
+            done
+            echo '}'
+            echo "${DELIMITER}"
+          } | tee -a "${GITHUB_OUTPUT}"
+
+  build:
+    needs: generate-tags
+    if: github.repository_owner == 'target'
+    name: docker (${{ matrix.arch }} Ubuntu ${{ matrix.version }})
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ["24.04"]
+        arch: ["x86_64", "arm64"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch origin/HEAD from Git
+        run: git fetch origin HEAD
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+        with:
+          cache-binary: false
+
+      - name: Retrieve build attributes
+        id: attributes
+        env:
+          VERSION: ${{ matrix.version }}
+          PUSH: ${{ needs.generate-tags.outputs.push }}
+        run: |
+          filter="$(printf '.["%s"]' "${VERSION}")"
+          echo "push=$(jq --raw-output "${filter}" <<<"${PUSH}")" >>"${GITHUB_OUTPUT}"
+
+      - name: Log in to GitHub Packages (github-actions[bot])
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ghcr.io
+          username: github-actions[bot]
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Docker image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          load: true
+          tags: diff-poetry-lock
+          cache-from: type=registry,ref=ghcr.io/target/diff-poetry-lock/ubuntu${{ matrix.version }}:cache
+          build-args: version=${{ matrix.version }}
+          labels: ${{ needs.generate-tags.outputs.labels }}
+
+      - name: Log in to GitHub Packages with service account
+        if: fromJSON(steps.attributes.outputs.push)
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy the Docker image by digest
+        id: digest
+        if: fromJSON(steps.attributes.outputs.push)
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          cache-from: type=registry,ref=ghcr.io/target/diff-poetry-lock/ubuntu${{ matrix.version }}:cache
+          cache-to: type=registry,ref=ghcr.io/target/diff-poetry-lock/ubuntu${{ matrix.version }}:cache,mode=max
+          build-args: version=${{ matrix.version }}
+          labels: ${{ needs.generate-tags.outputs.labels }}
+          outputs: type=image,name=ghcr.io/target/diff-poetry-lock/ubuntu${{ matrix.version }},name-canonical=true,push=true,push-by-digest=true
+
+      - name: Export the Docker image digest
+        if: fromJSON(steps.attributes.outputs.push)
+        run: |
+          mkdir -p "${RUNNER_TEMP}"/digests
+          echo "${DIGEST#sha256:}" >"${RUNNER_TEMP}/digests/${VERSION}-${ARCH}"
+        env:
+          DIGEST: ${{ steps.digest.outputs.digest }}
+          VERSION: ${{ matrix.version }}
+          ARCH: ${{ matrix.arch }}
+
+      - name: Upload the Docker image digest
+        if: fromJSON(steps.attributes.outputs.push)
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: digest-${{ matrix.version }}-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+
+  merge:
+    needs: [generate-tags, build]
+    if: github.repository_owner == 'target' && fromJSON(needs.generate-tags.outputs.merge)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ${{ fromJSON(needs.generate-tags.outputs.matrix) }}
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+        with:
+          cache-binary: false
+
+      - name: Download Docker image digests
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digest-${{ matrix.version }}-*
+          merge-multiple: true
+
+      - name: Log in to GitHub Packages with Service Account
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge and push Docker image
+        env:
+          TAGS: ${{ needs.generate-tags.outputs.tags }}
+          VERSION: ${{ matrix.version }}
+        run: |
+          filter="$(printf '.["%s"].[]' "${VERSION}")"
+          tag_args=()
+          while IFS=$'\n' read -r tag; do
+            [[ -n "${tag}" ]] || continue
+            tag_args+=("--tag=${tag}")
+          done <<<"$(jq --raw-output "${filter}" <<<"${TAGS}")"
+
+          image_args=("ghcr.io/target/diff-poetry-lock/ubuntu${VERSION}@sha256:$(<"${RUNNER_TEMP}/digests/${VERSION}-x86_64")")
+          image_args+=("ghcr.io/target/diff-poetry-lock/ubuntu${VERSION}@sha256:$(<"${RUNNER_TEMP}/digests/${VERSION}-arm64")")
+
+          attempts=0
+          until docker buildx imagetools create "${tag_args[@]}" "${image_args[@]}"; do
+            attempts=$((attempts + 1))
+            if [[ $attempts -ge 3 ]]; then
+              echo "[$(date -u)] ERROR: Failed after 3 attempts." >&2
+              exit 1
+            fi
+            delay=$((2 ** attempts))
+            if [[ $delay -gt 15 ]]; then delay=15; fi
+            echo "Push failed (attempt $attempts). Retrying in ${delay} seconds..."
+            sleep ${delay}
+          done
