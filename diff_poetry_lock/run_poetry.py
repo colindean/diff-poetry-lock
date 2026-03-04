@@ -142,8 +142,7 @@ def do_diff(settings: Settings) -> None:
     if not any(package.changed() for package in packages):
         summary = None
     else:
-        base_commit_hash = api.resolve_commit_hash(settings.ref)
-        target_commit_hash = api.resolve_commit_hash(settings.base_ref)
+        target_commit_hash, base_commit_hash = api.resolve_commit_hashes(settings.ref, settings.base_ref)
         summary = format_comment(
             packages,
             base_commit_hash=base_commit_hash,

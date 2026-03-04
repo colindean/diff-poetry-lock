@@ -2,10 +2,9 @@ import base64
 from operator import attrgetter
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, Never
+from typing import Any
 
 import pytest
-import requests
 import requests_mock
 from _pytest.monkeypatch import MonkeyPatch
 from requests_mock import Mocker
@@ -104,6 +103,20 @@ def test_request_headers_method() -> None:
     headers = GithubApi.request_headers("sekret-token")
     assert headers["Authorization"] == "Bearer sekret-token"
     assert headers["Accept"] == "application/vnd.github+json"
+
+
+@pytest.mark.parametrize(
+    ("api_url", "expected_graphql_url"),
+    [
+        ("https://api.github.com", "https://api.github.com/graphql"),
+        ("https://git.target.com/api/v3", "https://git.target.com/api/graphql"),
+    ],
+)
+def test_graphql_url_resolution(api_url: str, expected_graphql_url: str) -> None:
+    cfg = create_settings(api_url=api_url)
+    api = GithubApi(cfg)
+
+    assert api.graphql_url() == expected_graphql_url
 
 
 def test_diff_2() -> None:
@@ -225,6 +238,7 @@ def test_e2e_diff_inexisting_comment(cfg: Settings, data1: bytes, data2: bytes) 
     with requests_mock.Mocker() as m:
         mock_get_file(m, cfg, data1, cfg.base_ref, resolved_hash="old-sha")
         mock_get_file(m, cfg, data2, cfg.ref, resolved_hash="new-sha")
+        mock_resolve_commit_hashes(m, cfg, head_hash="new-sha", base_hash="old-sha")
         mock_list_comments(m, cfg, [])
         m.post(
             f"{cfg.api_url}/repos/{cfg.repository}/issues/{cfg.pr_num}/comments",
@@ -238,13 +252,14 @@ def test_e2e_diff_inexisting_comment(cfg: Settings, data1: bytes, data2: bytes) 
 def test_e2e_diff_existing_comment_same_data(cfg: Settings, data1: bytes, data2: bytes) -> None:
     summary = format_comment(
         diff(load_packages(TESTFILE_1), load_packages(TESTFILE_2)),
-        base_commit_hash="new-sha",
-        target_commit_hash="old-sha",
+        base_commit_hash="old-sha",
+        target_commit_hash="new-sha",
     )
 
     with requests_mock.Mocker() as m:
         mock_get_file(m, cfg, data1, cfg.base_ref, resolved_hash="old-sha")
         mock_get_file(m, cfg, data2, cfg.ref, resolved_hash="new-sha")
+        mock_resolve_commit_hashes(m, cfg, head_hash="new-sha", base_hash="old-sha")
         comments = [
             {"body": "foobar", "id": 1334, "user": {"id": 123}},
             {"body": "foobar", "id": 1335, "user": {"id": 41898282}},
@@ -265,6 +280,7 @@ def test_e2e_diff_existing_comment_different_data(cfg: Settings, data1: bytes, d
     with requests_mock.Mocker() as m:
         mock_get_file(m, cfg, data1, cfg.base_ref, resolved_hash="old-sha")
         mock_get_file(m, cfg, data2, cfg.ref, resolved_hash="new-sha")
+        mock_resolve_commit_hashes(m, cfg, head_hash="new-sha", base_hash="old-sha")
         comments = [
             {"body": "foobar", "id": 1334, "user": {"id": 123}},
             {"body": "foobar", "id": 1335, "user": {"id": 41898282}},
@@ -290,6 +306,11 @@ def test_e2e_diff_commit_lookup_http_failure_falls_back_to_ref(cfg: Settings, da
     with requests_mock.Mocker() as m:
         mock_get_file(m, cfg, data1, cfg.base_ref)
         mock_get_file(m, cfg, data2, cfg.ref)
+        m.post(
+            f"{cfg.api_url}/graphql",
+            request_headers=GithubApi.request_headers(cfg.token),
+            status_code=500,
+        )
         mock_list_comments(m, cfg, [])
         m.post(
             f"{cfg.api_url}/repos/{cfg.repository}/issues/{cfg.pr_num}/comments",
@@ -298,39 +319,6 @@ def test_e2e_diff_commit_lookup_http_failure_falls_back_to_ref(cfg: Settings, da
         )
 
         do_diff(cfg)
-
-
-def test_resolve_commit_hash_request_exception_returns_ref(cfg: Settings, monkeypatch: MonkeyPatch) -> None:
-    api = GithubApi(cfg)
-
-    def raise_timeout(*_args: object, **_kwargs: object) -> Never:
-        raise requests.Timeout
-
-    monkeypatch.setattr(api.session, "get", raise_timeout)
-
-    assert api.resolve_commit_hash(cfg.ref) == cfg.ref
-
-
-def test_resolve_commit_hash_cache_hit_uses_cached_value(cfg: Settings, data1: bytes) -> None:
-    api = GithubApi(cfg)
-
-    with requests_mock.Mocker() as m:
-        mock_get_file(m, cfg, data1, cfg.ref, resolved_hash="cached-sha")
-        _ = api.get_file(cfg.ref)
-
-    assert api.resolve_commit_hash(cfg.ref) == "cached-sha"
-
-
-def test_resolve_commit_hash_cache_miss_returns_ref(cfg: Settings, monkeypatch: MonkeyPatch) -> None:
-    api = GithubApi(cfg)
-
-    def fail_if_called(*_args: object, **_kwargs: object) -> Never:
-        msg = "resolve_commit_hash should not call HTTP"
-        raise AssertionError(msg)
-
-    monkeypatch.setattr(api.session, "get", fail_if_called)
-
-    assert api.resolve_commit_hash(cfg.ref) == cfg.ref
 
 
 def load_file(filename: Path) -> bytes:
@@ -361,10 +349,32 @@ def mock_get_file(m: Mocker, s: Settings, data: bytes, ref: str, resolved_hash: 
     )
 
 
+def mock_resolve_commit_hashes(
+    m: Mocker,
+    s: Settings,
+    head_hash: str | None = None,
+    base_hash: str | None = None,
+) -> None:
+    response_json = {
+        "data": {
+            "repository": {
+                "head": {"target": {"oid": head_hash}} if head_hash else None,
+                "base": {"target": {"oid": base_hash}} if base_hash else None,
+            }
+        }
+    }
+    m.post(
+        f"{s.api_url}/graphql",
+        request_headers=GithubApi.request_headers(s.token),
+        json=response_json,
+    )
+
+
 def create_settings(
     repository: str = "user/repo",
     lockfile_path: str = "poetry.lock",
     token: str = "foobar",
+    api_url: str = "http://localhost/github_api",
 ) -> Settings:
     return GitHubActionsSettings(
         event_name="pull_request",
@@ -373,5 +383,5 @@ def create_settings(
         token=token,
         base_ref="main",
         lockfile_path=lockfile_path,
-        api_url="http://localhost/github_api",
+        api_url=api_url,
     )

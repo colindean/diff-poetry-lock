@@ -1,4 +1,5 @@
 import base64
+from urllib.parse import urlparse
 
 import requests
 from loguru import logger
@@ -102,11 +103,6 @@ class GithubApi:
         r.raise_for_status()
         file_obj = r.json()
 
-        resolved_hash = str(file_obj.get("sha", "")).strip()
-        if resolved_hash:
-            self._ref_hash_cache[ref] = resolved_hash
-            logger.debug("Cached commit hash for ref {} from contents sha", ref)
-
         encoded_content = file_obj.get("content", "")
         if not isinstance(encoded_content, str):
             msg = "Invalid content returned from GitHub contents API"
@@ -114,13 +110,70 @@ class GithubApi:
 
         return base64.b64decode(encoded_content)
 
-    def resolve_commit_hash(self, ref: str) -> str:
-        if cached_hash := self._ref_hash_cache.get(ref):
-            logger.debug("Using cached commit hash for ref {}", ref)
-            return cached_hash
+    def resolve_commit_hashes(self, head_ref: str, base_ref: str) -> tuple[str, str]:
+        cached_head_hash = self._ref_hash_cache.get(head_ref)
+        cached_base_hash = self._ref_hash_cache.get(base_ref)
+        if cached_head_hash and cached_base_hash:
+            logger.debug("Using cached commit hashes for head_ref {} and base_ref {}", head_ref, base_ref)
+            return cached_head_hash, cached_base_hash
 
-        logger.warning("No cached commit hash for ref {}, falling back to ref", ref)
-        return ref
+        owner, repo_name = self.s.repository.split("/", maxsplit=1)
+        query = (
+            "query($owner:String!, $name:String!, $head:String!, $base:String!){"
+            " repository(owner:$owner, name:$name){"
+            "  head:ref(qualifiedName:$head){ target { ... on Commit { oid } } }"
+            "  base:ref(qualifiedName:$base){ target { ... on Commit { oid } } }"
+            " }"
+            "}"
+        )
+        variables = {
+            "owner": owner,
+            "name": repo_name,
+            "head": self._qualified_ref(head_ref),
+            "base": self._qualified_ref(base_ref),
+        }
+
+        try:
+            r = self.session.post(
+                self.graphql_url(),
+                headers=self.api_headers(),
+                json={"query": query, "variables": variables},
+                timeout=10,
+            )
+            logger.debug("GraphQL response status: {}", r.status_code)
+            r.raise_for_status()
+            response_json = r.json()
+
+            repo_data = response_json.get("data", {}).get("repository", {})
+            resolved_head_hash = str(((repo_data.get("head") or {}).get("target") or {}).get("oid", "")).strip()
+            resolved_base_hash = str(((repo_data.get("base") or {}).get("target") or {}).get("oid", "")).strip()
+            if resolved_head_hash:
+                self._ref_hash_cache[head_ref] = resolved_head_hash
+            if resolved_base_hash:
+                self._ref_hash_cache[base_ref] = resolved_base_hash
+
+        except (requests.RequestException, ValueError, TypeError):
+            logger.exception("Failed to resolve commit hashes via GraphQL")
+
+        resolved_head_hash = self._ref_hash_cache.get(head_ref, head_ref)
+        resolved_base_hash = self._ref_hash_cache.get(base_ref, base_ref)
+        if resolved_head_hash == head_ref or resolved_base_hash == base_ref:
+            logger.warning("Could not resolve one or more commit hashes, falling back to provided refs")
+        return resolved_head_hash, resolved_base_hash
+
+    def graphql_url(self) -> str:
+        parsed = urlparse(self.s.api_url)
+        if parsed.path.endswith("/api/v3"):
+            graphql_path = f"{parsed.path.removesuffix('/api/v3')}/api/graphql"
+            return f"{parsed.scheme}://{parsed.netloc}{graphql_path}"
+
+        return f"{self.s.api_url.rstrip('/')}/graphql"
+
+    @staticmethod
+    def _qualified_ref(ref: str) -> str:
+        if ref.startswith("refs/"):
+            return ref
+        return f"refs/heads/{ref}"
 
     def delete_comment(self, comment_id: int) -> None:
         logger.debug("Deleting comment {}", comment_id)
