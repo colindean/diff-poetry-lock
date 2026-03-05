@@ -13,7 +13,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 defaults:
   run:
@@ -229,6 +228,8 @@ jobs:
     needs: [generate-tags, build]
     if: github.repository_owner == 'target' && fromJSON(needs.generate-tags.outputs.merge)
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
     strategy:
       fail-fast: false
       matrix:
