@@ -10,7 +10,7 @@ def get_nested(
     keys: Iterable[Key],
 ) -> object | None:
     return reduce(
-        lambda current, key: (current.get(key) if isinstance(current, Mapping) else None),
+        lambda current, key: current.get(key) if isinstance(current, Mapping) else None,
         keys,
         cast(object, d),
     )
