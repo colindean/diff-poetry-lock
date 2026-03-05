@@ -2,7 +2,7 @@
 name = "diff-poetry-lock"
 version = "1.0.1.dev0"
 description = "A CI check that post to GitHub a summary of all changes within the poetry.lock file to a pull request"
-authors = ["Nils Borrmann"]
+authors = ["Nils Borrmann", "Colin Dean", "Lakshmi Narayanan"]
 readme = "README.md"
 
 [tool.poetry.scripts]
