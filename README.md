@@ -44,7 +44,9 @@ Simply add the following step to your GitHub Action:
       - name: Diff poetry.lock
         uses: target/diff-poetry-lock@30a153ca2d5cbdd209fc78b0ec013915748b6bab # v0.0.2
         with:
-          # Optional: force a specific Poetry runtime version for lockfile compatibility
+          # Optional: force a specific Poetry runtime version for lockfile compatibility.
+          # The version must align with the major version that diff-poetry-lock uses,
+          # or incompatible API changes may cause failures.
           poetry_version: "2.3.2"
 ```
 
