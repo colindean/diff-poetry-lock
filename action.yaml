@@ -12,7 +12,10 @@ inputs:
     description: "Path to the lockfile inside the repo (defaults to 'poetry.lock')"
     default: "poetry.lock"
     required: false
-
+  poetry_version:
+    description: "Optional Poetry version to install in an isolated runtime venv before executing (for lockfile compatibility)"
+    default: ""
+    required: false
 runs:
   using: 'docker'
   image: 'Dockerfile'
