@@ -1,3 +1,5 @@
+import os
+from collections.abc import Callable
 from operator import attrgetter
 from pathlib import Path
 from textwrap import dedent
@@ -112,6 +114,43 @@ def test_settings_not_pr(monkeypatch: MonkeyPatch) -> None:
 
     assert pytest_wrapped_e.type is SystemExit
     assert pytest_wrapped_e.value.code == 0
+
+
+def accept_headers_examples() -> list[tuple[Callable[[str], dict[str, str]], str]]:
+    return [
+        (GithubApi.Headers.JSON.headers, "application/vnd.github+json"),
+        (GithubApi.Headers.RAW.headers, "application/vnd.github.raw"),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("headers_fn", "expected_accept_header"),
+    accept_headers_examples(),
+)
+def test_request_headers_method(headers_fn: Callable[[str], dict[str, str]], expected_accept_header: str) -> None:
+    headers = headers_fn("sekret-token")
+    assert headers["Authorization"] == "Bearer sekret-token"
+    assert headers["Accept"] == expected_accept_header
+
+
+def graphql_url_examples() -> list[tuple[str, str]]:
+    examples: list[tuple[str, str]] = [("https://api.github.com", "https://api.github.com/graphql")]
+    if ghes := os.environ.get("PARAMETER_GITHUB_API_URL"):
+        replaced = ghes.replace("v3", "graphql")
+        if replaced != ghes:
+            examples.append((ghes, replaced))
+    return examples
+
+
+@pytest.mark.parametrize(
+    ("api_url", "expected_graphql_url"),
+    graphql_url_examples(),
+)
+def test_graphql_url_resolution(api_url: str, expected_graphql_url: str) -> None:
+    cfg = create_settings(api_url=api_url)
+    api = GithubApi(cfg)
+
+    assert api.graphql_url() == expected_graphql_url
 
 
 def test_diff() -> None:
@@ -364,7 +403,7 @@ def test_resolve_commit_hash_request_exception_returns_ref(cfg: Settings, monkey
         msg = "timeout"
         raise ValueError(msg)
 
-    monkeypatch.setattr(api.requester, "graphql_query", raise_timeout)
+    monkeypatch.setattr("diff_poetry_lock.github.requests.post", raise_timeout)
 
     resolved_head, resolved_base = api.resolve_commit_hashes(cfg.ref, cfg.base_ref)
     assert resolved_head == cfg.ref

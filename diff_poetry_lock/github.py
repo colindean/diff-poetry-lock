@@ -1,6 +1,8 @@
+from enum import Enum
+from urllib.parse import urlparse
+
 import requests
 from github import Auth, Github
-from github.GithubException import GithubException
 from github.Repository import Repository
 from loguru import logger
 from pydantic import BaseModel, Field, parse_obj_as
@@ -33,11 +35,14 @@ class RepoFileRetrievalError(BaseException):
 class GithubApi:
     def __init__(self, settings: Settings) -> None:
         self.s = settings
+
         self.session = requests.session()
+
         self.github = Github(auth=Auth.Token(self.s.token), base_url=self.s.api_url.rstrip("/"), per_page=100)
         self._repo: Repository | None = None
-        self.requester = self.github._Github__requester
+
         self._ref_hash_cache: dict[str, str] = {}
+
         if isinstance(self.s, PrLookupConfigurable):
             self.s.set_pr_lookup_service(self)
 
@@ -92,7 +97,7 @@ class GithubApi:
         r = self.session.get(
             f"{self.s.api_url}/repos/{self.s.repository}/contents/{self.s.lockfile_path}",
             params={"ref": ref},
-            headers={"Authorization": f"Bearer {self.s.token}", "Accept": "application/vnd.github.raw"},
+            headers=GithubApi.Headers.RAW.headers(self.s.token),
             timeout=10,
             stream=True,
         )
@@ -127,7 +132,15 @@ class GithubApi:
         }
 
         try:
-            _headers, response_json = self.requester.graphql_query(query, variables)
+            r = self.session.post(
+                self.graphql_url(),
+                headers=GithubApi.Headers.JSON.headers(self.s.token),
+                json={"query": query, "variables": variables},
+                timeout=10,
+            )
+            logger.debug("GraphQL response status: {}", r.status_code)
+            r.raise_for_status()
+            response_json = r.json()
 
             repo_data = response_json.get("data", {}).get("repository", {})
             resolved_head_hash = str(get_nested(repo_data, ("head", "target", "oid")) or "").strip()
@@ -137,7 +150,7 @@ class GithubApi:
             if resolved_base_hash:
                 self._ref_hash_cache[base_ref] = resolved_base_hash
 
-        except (GithubException, ValueError, TypeError):
+        except (requests.RequestException, ValueError, TypeError):
             logger.exception("Failed to resolve commit hashes via GraphQL")
 
         resolved_head_hash = self._ref_hash_cache.get(head_ref, head_ref)
@@ -145,6 +158,14 @@ class GithubApi:
         if resolved_head_hash == head_ref or resolved_base_hash == base_ref:
             logger.warning("Could not resolve one or more commit hashes, falling back to provided refs")
         return resolved_head_hash, resolved_base_hash
+
+    def graphql_url(self) -> str:
+        parsed = urlparse(self.s.api_url)
+        if parsed.path.endswith("/api/v3"):
+            graphql_path = f"{parsed.path.removesuffix('/api/v3')}/api/graphql"
+            return f"{parsed.scheme}://{parsed.netloc}{graphql_path}"
+
+        return f"{self.s.api_url.rstrip('/')}/graphql"
 
     @staticmethod
     def _qualified_ref(ref: str) -> str:
@@ -161,6 +182,15 @@ class GithubApi:
         issue = self.repo.get_issue(int(self.s.pr_num))
         issue_comment = issue.get_comment(comment_id)
         issue_comment.delete()
+
+    class Headers(Enum):
+        """Enum for github api headers."""
+
+        JSON = "application/vnd.github+json"
+        RAW = "application/vnd.github.raw"
+
+        def headers(self, token: str) -> dict[str, str]:
+            return {"Authorization": f"Bearer {token}", "Accept": self.value}
 
     def find_pr_for_branch(self, branch_ref: str) -> str:
         """Find open PR number for a given branch ref (e.g., 'refs/heads/deps-update').
