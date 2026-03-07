@@ -54,5 +54,7 @@ jobs:
           sparse-checkout: poetry.lock
           persist-credentials: false
       - name: Diff poetry.lock
+        env:
+          DEBUG_MODE: 1
         uses: | # zizmor: ignore[unpinned-uses] It's safe to use main on our own repo.
           target/diff-poetry-lock@main
