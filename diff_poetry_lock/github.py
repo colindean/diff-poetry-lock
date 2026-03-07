@@ -1,7 +1,7 @@
-from enum import Enum
-from urllib.parse import urlparse
-
 import requests
+from github import Auth, Github
+from github.GithubException import GithubException
+from github.Repository import Repository
 from loguru import logger
 from pydantic import BaseModel, Field, parse_obj_as
 from requests import Response
@@ -34,9 +34,18 @@ class GithubApi:
     def __init__(self, settings: Settings) -> None:
         self.s = settings
         self.session = requests.session()
+        self.github = Github(auth=Auth.Token(self.s.token), base_url=self.s.api_url.rstrip("/"), per_page=100)
+        self._repo: Repository | None = None
+        self.requester = self.github._Github__requester
         self._ref_hash_cache: dict[str, str] = {}
         if isinstance(self.s, PrLookupConfigurable):
             self.s.set_pr_lookup_service(self)
+
+    @property
+    def repo(self) -> Repository:
+        if self._repo is None:
+            self._repo = self.github.get_repo(self.s.repository)
+        return self._repo
 
     def post_comment(self, comment: str) -> None:
         if not comment:
@@ -48,25 +57,18 @@ class GithubApi:
             return
 
         logger.debug("Posting comment to PR #{}", self.s.pr_num)
-        r = self.session.post(
-            f"{self.s.api_url}/repos/{self.s.repository}/issues/{self.s.pr_num}/comments",
-            headers=GithubApi.Headers.JSON.headers(self.s.token),
-            json={"body": f"{MAGIC_COMMENT_IDENTIFIER}{comment}"},
-            timeout=10,
-        )
-        logger.debug("Response status: {}", r.status_code)
-        r.raise_for_status()
+        issue = self.repo.get_issue(int(self.s.pr_num))
+        issue.create_comment(f"{MAGIC_COMMENT_IDENTIFIER}{comment}")
 
     def update_comment(self, comment_id: int, comment: str) -> None:
         logger.debug("Updating comment {}", comment_id)
-        r = self.session.patch(
-            f"{self.s.api_url}/repos/{self.s.repository}/issues/comments/{comment_id}",
-            headers=GithubApi.Headers.JSON.headers(self.s.token),
-            json={"body": f"{MAGIC_COMMENT_IDENTIFIER}{comment}"},
-            timeout=10,
-        )
-        logger.debug("Response status: {}", r.status_code)
-        r.raise_for_status()
+        if not self.s.pr_num:
+            logger.warning("No PR number available; skipping comment update")
+            return
+
+        issue = self.repo.get_issue(int(self.s.pr_num))
+        issue_comment = issue.get_comment(comment_id)
+        issue_comment.edit(f"{MAGIC_COMMENT_IDENTIFIER}{comment}")
 
     def list_comments(self) -> list[GithubComment]:
         if not self.s.pr_num:
@@ -74,18 +76,13 @@ class GithubApi:
             return []
 
         logger.debug("Fetching comments for PR #{}", self.s.pr_num)
-        all_comments, comments, page = [], None, 1
-        while comments is None or len(comments) == 100:
-            r = self.session.get(
-                f"{self.s.api_url}/repos/{self.s.repository}/issues/{self.s.pr_num}/comments",
-                params={"per_page": 100, "page": page},
-                headers=GithubApi.Headers.JSON.headers(self.s.token),
-                timeout=10,
-            )
-            r.raise_for_status()
-            comments = parse_obj_as(list[GithubComment], r.json())
-            all_comments.extend(comments)
-            page += 1
+        issue = self.repo.get_issue(int(self.s.pr_num))
+        parsed_payload: list[dict[str, object]] = []
+        for comment in issue.get_comments():
+            user_id = comment.user.id if comment.user is not None else 0
+            parsed_payload.append({"id": comment.id, "body": comment.body or "", "user": {"id": user_id}})
+
+        all_comments = parse_obj_as(list[GithubComment], parsed_payload)
         logger.debug("Found %d comments", len(all_comments))
         return [c for c in all_comments if c.is_diff_comment()]
 
@@ -95,7 +92,7 @@ class GithubApi:
         r = self.session.get(
             f"{self.s.api_url}/repos/{self.s.repository}/contents/{self.s.lockfile_path}",
             params={"ref": ref},
-            headers=GithubApi.Headers.RAW.headers(self.s.token),
+            headers={"Authorization": f"Bearer {self.s.token}", "Accept": "application/vnd.github.raw"},
             timeout=10,
             stream=True,
         )
@@ -130,15 +127,7 @@ class GithubApi:
         }
 
         try:
-            r = self.session.post(
-                self.graphql_url(),
-                headers=GithubApi.Headers.JSON.headers(self.s.token),
-                json={"query": query, "variables": variables},
-                timeout=10,
-            )
-            logger.debug("GraphQL response status: {}", r.status_code)
-            r.raise_for_status()
-            response_json = r.json()
+            _headers, response_json = self.requester.graphql_query(query, variables)
 
             repo_data = response_json.get("data", {}).get("repository", {})
             resolved_head_hash = str(get_nested(repo_data, ("head", "target", "oid")) or "").strip()
@@ -148,7 +137,7 @@ class GithubApi:
             if resolved_base_hash:
                 self._ref_hash_cache[base_ref] = resolved_base_hash
 
-        except (requests.RequestException, ValueError, TypeError):
+        except (GithubException, ValueError, TypeError):
             logger.exception("Failed to resolve commit hashes via GraphQL")
 
         resolved_head_hash = self._ref_hash_cache.get(head_ref, head_ref)
@@ -156,14 +145,6 @@ class GithubApi:
         if resolved_head_hash == head_ref or resolved_base_hash == base_ref:
             logger.warning("Could not resolve one or more commit hashes, falling back to provided refs")
         return resolved_head_hash, resolved_base_hash
-
-    def graphql_url(self) -> str:
-        parsed = urlparse(self.s.api_url)
-        if parsed.path.endswith("/api/v3"):
-            graphql_path = f"{parsed.path.removesuffix('/api/v3')}/api/graphql"
-            return f"{parsed.scheme}://{parsed.netloc}{graphql_path}"
-
-        return f"{self.s.api_url.rstrip('/')}/graphql"
 
     @staticmethod
     def _qualified_ref(ref: str) -> str:
@@ -173,12 +154,13 @@ class GithubApi:
 
     def delete_comment(self, comment_id: int) -> None:
         logger.debug("Deleting comment {}", comment_id)
-        r = self.session.delete(
-            f"{self.s.api_url}/repos/{self.s.repository}/issues/comments/{comment_id}",
-            headers=GithubApi.Headers.JSON.headers(self.s.token),
-        )
-        logger.debug("Response status: {}", r.status_code)
-        r.raise_for_status()
+        if not self.s.pr_num:
+            logger.warning("No PR number available; skipping comment delete")
+            return
+
+        issue = self.repo.get_issue(int(self.s.pr_num))
+        issue_comment = issue.get_comment(comment_id)
+        issue_comment.delete()
 
     def find_pr_for_branch(self, branch_ref: str) -> str:
         """Find open PR number for a given branch ref (e.g., 'refs/heads/deps-update').
@@ -189,32 +171,15 @@ class GithubApi:
         org = self.s.repository.split("/")[0]
         head = f"{org}:{branch}"
 
-        r = self.session.get(
-            f"{self.s.api_url}/repos/{self.s.repository}/pulls",
-            params={"head": head, "state": "open"},
-            headers=GithubApi.Headers.JSON.headers(self.s.token),
-            timeout=10,
-        )
-        logger.debug("Response status: {}", r.status_code)
-        r.raise_for_status()
+        pulls = self.repo.get_pulls(state="open", head=head)
 
-        pulls = r.json()
-        if pulls and len(pulls) > 0:
-            pr_num = str(pulls[0]["number"])
+        if pulls.totalCount > 0:
+            pr_num = str(next(iter(pulls)).number)
             logger.debug("Found open PR #{}", pr_num)
             return pr_num
 
         logger.debug("No open PR found for branch {}", branch)
         return ""
-
-    class Headers(Enum):
-        """Enum for github api content types."""
-
-        JSON = "application/vnd.github+json"
-        RAW = "application/vnd.github.raw"
-
-        def headers(self, token: str) -> dict[str, str]:
-            return {"Authorization": f"Bearer {token}", "Accept": self.value}
 
     def upsert_comment(self, existing_comment: GithubComment | None, comment: str | None) -> None:
         if existing_comment is None and comment is None:

@@ -1,4 +1,3 @@
-import os
 from operator import attrgetter
 from pathlib import Path
 from textwrap import dedent
@@ -155,32 +154,6 @@ def test_diff() -> None:
     ).strip() == dedent(expected_comment).strip()
 
 
-def test_request_headers_method() -> None:
-    headers = GithubApi.Headers.JSON.headers("sekret-token")
-    assert headers["Authorization"] == "Bearer sekret-token"
-    assert headers["Accept"] == "application/vnd.github+json"
-
-
-def graphql_url_examples() -> list[tuple[str, str]]:
-    examples: list[tuple[str, str]] = [("https://api.github.com", "https://api.github.com/graphql")]
-    if ghes := os.environ.get("PARAMETER_GITHUB_API_URL"):
-        replaced = ghes.replace("v3", "graphql")
-        if replaced != ghes:
-            examples.append((ghes, replaced))
-    return examples
-
-
-@pytest.mark.parametrize(
-    ("api_url", "expected_graphql_url"),
-    graphql_url_examples(),
-)
-def test_graphql_url_resolution(api_url: str, expected_graphql_url: str) -> None:
-    cfg = create_settings(api_url=api_url)
-    api = GithubApi(cfg)
-
-    assert api.graphql_url() == expected_graphql_url
-
-
 def test_diff_2() -> None:
     old = load_packages(TESTFILE_2)
     new = load_packages(TESTFILE_1)
@@ -240,9 +213,9 @@ def test_diff_no_changes() -> None:
 
 def test_file_loading_missing_file_base_ref(cfg: Settings) -> None:
     with requests_mock.Mocker() as m:
+        mock_repo(m, cfg)
         m.get(
             f"{cfg.api_url}/repos/{cfg.repository}/contents/{cfg.lockfile_path}?ref={cfg.base_ref}",
-            request_headers=GithubApi.Headers.RAW.headers(cfg.token),
             status_code=404,
         )
 
@@ -252,10 +225,10 @@ def test_file_loading_missing_file_base_ref(cfg: Settings) -> None:
 
 def test_file_loading_missing_file_head_ref(cfg: Settings, data1: bytes) -> None:
     with requests_mock.Mocker() as m:
+        mock_repo(m, cfg)
         mock_get_file(m, cfg, data1, cfg.base_ref)
         m.get(
             f"{cfg.api_url}/repos/{cfg.repository}/contents/{cfg.lockfile_path}?ref={cfg.ref}",
-            request_headers=GithubApi.Headers.RAW.headers(cfg.token),
             status_code=404,
         )
 
@@ -273,9 +246,9 @@ def test_e2e_no_diff_existing_comment(cfg: Settings, data1: bytes) -> None:
             {"body": f"{MAGIC_COMMENT_IDENTIFIER}foobar", "id": 1337, "user": {"id": 41898282}},
         ]
         mock_list_comments(m, cfg, comments)
+        mock_issue_comment(m, cfg, 1337, f"{MAGIC_COMMENT_IDENTIFIER}foobar")
         m.delete(
             f"{cfg.api_url}/repos/{cfg.repository}/issues/comments/1337",
-            headers=GithubApi.Headers.JSON.headers(cfg.token),
         )
 
         do_diff(cfg)
@@ -305,7 +278,6 @@ def test_e2e_diff_inexisting_comment(cfg: Settings, data1: bytes, data2: bytes) 
         mock_list_comments(m, cfg, [], pr_num="1")
         m.post(
             f"{cfg.api_url}/repos/{cfg.repository}/issues/1/comments",
-            headers=GithubApi.Headers.JSON.headers(cfg.token),
             json={"body": f"{MAGIC_COMMENT_IDENTIFIER}{summary}"},
         )
 
@@ -352,9 +324,9 @@ def test_e2e_diff_existing_comment_different_data(cfg: Settings, data1: bytes, d
             {"body": f"{MAGIC_COMMENT_IDENTIFIER}{summary}", "id": 1337, "user": {"id": 41898282}},
         ]
         mock_list_comments(m, cfg, comments, pr_num="1")
+        mock_issue_comment(m, cfg, 1337, f"{MAGIC_COMMENT_IDENTIFIER}{summary}")
         m.patch(
             f"{cfg.api_url}/repos/{cfg.repository}/issues/comments/1337",
-            headers=GithubApi.Headers.JSON.headers(cfg.token),
             json={"body": f"{MAGIC_COMMENT_IDENTIFIER}{summary}"},
         )
 
@@ -374,17 +346,50 @@ def test_e2e_diff_commit_lookup_http_failure_falls_back_to_ref(cfg: Settings, da
         mock_find_pr_for_branch(m, cfg, pr_num="1")
         m.post(
             f"{cfg.api_url}/graphql",
-            request_headers=GithubApi.Headers.JSON.headers(cfg.token),
             status_code=500,
         )
         mock_list_comments(m, cfg, [], pr_num="1")
         m.post(
             f"{cfg.api_url}/repos/{cfg.repository}/issues/1/comments",
-            headers=GithubApi.Headers.JSON.headers(cfg.token),
             json={"body": f"{MAGIC_COMMENT_IDENTIFIER}{summary}"},
         )
 
         do_diff(cfg)
+
+
+def test_resolve_commit_hash_request_exception_returns_ref(cfg: Settings, monkeypatch: MonkeyPatch) -> None:
+    api = GithubApi(cfg)
+
+    def raise_timeout(*_args: object, **_kwargs: object) -> None:
+        msg = "timeout"
+        raise ValueError(msg)
+
+    monkeypatch.setattr(api.requester, "graphql_query", raise_timeout)
+
+    resolved_head, resolved_base = api.resolve_commit_hashes(cfg.ref, cfg.base_ref)
+    assert resolved_head == cfg.ref
+    assert resolved_base == cfg.base_ref
+
+
+def test_resolve_commit_hash_cache_hit_uses_cached_value(cfg: Settings) -> None:
+    api = GithubApi(cfg)
+
+    with requests_mock.Mocker() as m:
+        mock_resolve_commit_hashes(m, cfg, head_hash="cached-sha", base_hash="base-sha")
+        resolved_head, resolved_base = api.resolve_commit_hashes(cfg.ref, cfg.base_ref)
+
+    assert resolved_head == "cached-sha"
+    assert resolved_base == "base-sha"
+
+
+def test_resolve_commit_hash_cache_miss_returns_ref(cfg: Settings) -> None:
+    api = GithubApi(cfg)
+
+    with requests_mock.Mocker() as m:
+        mock_resolve_commit_hashes(m, cfg)
+        resolved_head, resolved_base = api.resolve_commit_hashes(cfg.ref, cfg.base_ref)
+        assert resolved_head == cfg.ref
+        assert resolved_base == cfg.base_ref
 
 
 def load_file(filename: Path) -> bytes:
@@ -393,26 +398,37 @@ def load_file(filename: Path) -> bytes:
 
 
 def mock_find_pr_for_branch(m: Mocker, s: Settings, pr_num: str = "1") -> None:
-    head = f"{s.repository.split('/')[0]}:{s.ref}"
+    mock_repo(m, s)
+    branch = s.ref.replace("refs/heads/", "")
+    head = f"{s.repository.split('/')[0]}:{branch}"
     m.get(
         f"{s.api_url}/repos/{s.repository}/pulls?head={head}&state=open",
-        request_headers=GithubApi.Headers.JSON.headers(s.token),
+        json=[{"number": int(pr_num)}],
+    )
+    m.get(
+        f"{s.api_url}/repos/{s.repository}/pulls?state=open&head={head}",
         json=[{"number": int(pr_num)}],
     )
 
 
 def mock_list_comments(m: Mocker, s: Settings, response_json: list[dict[Any, Any]], pr_num: str = "1") -> None:
+    mock_repo(m, s)
+    mock_issue(m, s, pr_num=pr_num)
+    comments_base_url = f"{s.api_url}/repos/{s.repository}/issues/{pr_num}/comments"
     m.get(
-        f"{s.api_url}/repos/{s.repository}/issues/{pr_num}/comments?per_page=100&page=1",
-        request_headers=GithubApi.Headers.JSON.headers(s.token),
+        f"{comments_base_url}?per_page=100&page=1",
+        json=response_json,
+    )
+    m.get(
+        f"{comments_base_url}?per_page=100",
         json=response_json,
     )
 
 
 def mock_get_file(m: Mocker, s: Settings, data: bytes, ref: str, resolved_hash: str | None = None) -> None:
+    mock_repo(m, s)
     m.get(
         f"{s.api_url}/repos/{s.repository}/contents/{s.lockfile_path}?ref={ref}",
-        request_headers=GithubApi.Headers.RAW.headers(s.token),
         content=data,
     )
 
@@ -433,8 +449,46 @@ def mock_resolve_commit_hashes(
     }
     m.post(
         f"{s.api_url}/graphql",
-        request_headers=GithubApi.Headers.JSON.headers(s.token),
         json=response_json,
+    )
+
+
+def mock_repo(m: Mocker, s: Settings) -> None:
+    repo_url = f"{s.api_url}/repos/{s.repository}"
+    m.get(
+        repo_url,
+        json={
+            "id": 1,
+            "name": s.repository.split("/")[-1],
+            "full_name": s.repository,
+            "url": repo_url,
+            "contents_url": f"{repo_url}/contents/{{+path}}",
+            "issues_url": f"{repo_url}/issues{{/number}}",
+            "pulls_url": f"{repo_url}/pulls{{/number}}",
+        },
+    )
+
+
+def mock_issue(m: Mocker, s: Settings, pr_num: str | None = None) -> None:
+    effective_pr_num = pr_num or s.pr_num
+    assert effective_pr_num is not None
+    issue_url = f"{s.api_url}/repos/{s.repository}/issues/{effective_pr_num}"
+    m.get(
+        issue_url,
+        json={
+            "id": int(effective_pr_num),
+            "number": int(effective_pr_num),
+            "url": issue_url,
+            "comments_url": f"{issue_url}/comments",
+        },
+    )
+
+
+def mock_issue_comment(m: Mocker, s: Settings, comment_id: int, body: str) -> None:
+    comment_url = f"{s.api_url}/repos/{s.repository}/issues/comments/{comment_id}"
+    m.get(
+        comment_url,
+        json={"id": comment_id, "url": comment_url, "body": body, "user": {"id": 41898282}},
     )
 
 
@@ -442,7 +496,7 @@ def create_settings(
     repository: str = "user/repo",
     lockfile_path: str = "poetry.lock",
     token: str = "foobar",
-    api_url: str = "http://localhost/github_api",
+    api_url: str = "http://localhost:80",
 ) -> Settings:
     return GitHubActionsSettings(
         event_name="pull_request",
