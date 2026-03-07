@@ -51,6 +51,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
+          sparse-checkout: poetry.lock
           persist-credentials: false
       - name: Diff poetry.lock
         uses: | # zizmor: ignore[unpinned-uses] It's safe to use main on our own repo.
