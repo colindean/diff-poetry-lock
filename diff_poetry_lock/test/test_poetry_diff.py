@@ -12,7 +12,7 @@ from requests_mock import Mocker
 from diff_poetry_lock import __version__
 from diff_poetry_lock.github import MAGIC_COMMENT_IDENTIFIER, GithubApi
 from diff_poetry_lock.run_poetry import PackageSummary, diff, do_diff, format_comment, load_packages, main
-from diff_poetry_lock.settings import GitHubActionsSettings, Settings
+from diff_poetry_lock.settings import GitHubActionsSettings, PrLookupConfigurable, Settings, VelaSettings
 
 TESTFILE_1 = Path("diff_poetry_lock/test/res/poetry1.lock")
 TESTFILE_2 = Path("diff_poetry_lock/test/res/poetry2.lock")
@@ -33,21 +33,63 @@ def data2() -> bytes:
     return load_file(TESTFILE_2)
 
 
+class _LookupService:
+    def __init__(self, settings: Settings) -> None:
+        self.s = settings
+        if isinstance(self.s, PrLookupConfigurable):
+            self.s.set_pr_lookup_service(self)
+
+    def find_pr_for_branch(self, branch_ref: str) -> str:
+        if branch_ref == "refs/heads/github-actions":
+            return "42"
+        if branch_ref == "refs/heads/vela":
+            return "1"
+        return ""
+
+
 def test_settings(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
-    monkeypatch.setenv("GITHUB_REF", "refs/pull/1/merge")
+    monkeypatch.setenv("GITHUB_HEAD_REF", "refs/heads/github-actions")
     monkeypatch.setenv("GITHUB_REPOSITORY", "account/repo")
     monkeypatch.setenv("INPUT_GITHUB_TOKEN", "foobar")
     monkeypatch.setenv("GITHUB_BASE_REF", "main")
 
     s = GitHubActionsSettings()
+    assert s.event_name == "pull_request"
+    assert s.ref == "refs/heads/github-actions"
+    assert s.repository == "account/repo"
+    assert s.base_ref == "main"
+    assert s.pr_num is None
+
+    _LookupService(s)
+
+    assert s.pr_num == "42"
+
+
+def test_vela_settings(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setenv("VELA_BUILD_EVENT", "push")
+    monkeypatch.setenv("VELA_BUILD_REF", "refs/heads/vela")
+    monkeypatch.setenv("VELA_REPO_FULL_NAME", "account/repo")
+    monkeypatch.setenv("VELA_REPO_BRANCH", "main")
+    monkeypatch.setenv("PARAMETER_GITHUB_TOKEN", "vela-token")
+    monkeypatch.setenv("PARAMETER_LOCKFILE_PATH", "poetry.lock")
+    monkeypatch.setenv("PARAMETER_GITHUB_API_URL", "https://api.github.com")
+
+    s = VelaSettings()
+    assert s.event_name == "push"
+    assert s.ref == "refs/heads/vela"
+    assert s.repository == "account/repo"
+    assert s.base_ref == "refs/heads/main"
+    assert s.pr_num is None
+
+    _LookupService(s)
 
     assert s.pr_num == "1"
 
 
 def test_settings_not_pr(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("GITHUB_EVENT_NAME", "push")
-    monkeypatch.setenv("GITHUB_REF", "refs/pull/1/merge")
+    monkeypatch.setenv("GITHUB_HEAD_REF", "deps-update")
     monkeypatch.setenv("GITHUB_REPOSITORY", "account/repo")
     monkeypatch.setenv("INPUT_GITHUB_TOKEN", "foobar")
     monkeypatch.setenv("GITHUB_BASE_REF", "main")
@@ -79,7 +121,7 @@ def test_diff() -> None:
     expected_comment = f"""\
     ### Detected 3 changes to dependencies in Poetry lockfile
 
-    From base new-sha to target old-sha:
+    From base new-sha to head old-sha:
 
     Removed **pydantic** (1.10.6)
     Removed **typing-extensions** (4.5.0)
@@ -93,7 +135,7 @@ def test_diff() -> None:
         format_comment(
             summary,
             base_commit_hash="new-sha",
-            target_commit_hash="old-sha",
+            head_commit_hash="old-sha",
         )
         or ""
     ).strip() == dedent(expected_comment).strip()
@@ -145,7 +187,7 @@ def test_diff_2() -> None:
     expected_comment = f"""\
     ### Detected 3 changes to dependencies in Poetry lockfile
 
-    From base new-sha to target old-sha:
+    From base new-sha to head old-sha:
 
     Added **pydantic** (1.10.6)
     Added **typing-extensions** (4.5.0)
@@ -159,7 +201,7 @@ def test_diff_2() -> None:
         format_comment(
             summary,
             base_commit_hash="new-sha",
-            target_commit_hash="old-sha",
+            head_commit_hash="old-sha",
         )
         or ""
     ).strip() == dedent(expected_comment).strip()
@@ -238,16 +280,17 @@ def test_e2e_diff_inexisting_comment(cfg: Settings, data1: bytes, data2: bytes) 
     summary = format_comment(
         diff(load_packages(TESTFILE_2), load_packages(TESTFILE_1)),
         base_commit_hash="new-sha",
-        target_commit_hash="old-sha",
+        head_commit_hash="old-sha",
     )
 
     with requests_mock.Mocker() as m:
         mock_get_file(m, cfg, data1, cfg.base_ref, resolved_hash="old-sha")
         mock_get_file(m, cfg, data2, cfg.ref, resolved_hash="new-sha")
         mock_resolve_commit_hashes(m, cfg, head_hash="new-sha", base_hash="old-sha")
-        mock_list_comments(m, cfg, [])
+        mock_find_pr_for_branch(m, cfg, pr_num="1")
+        mock_list_comments(m, cfg, [], pr_num="1")
         m.post(
-            f"{cfg.api_url}/repos/{cfg.repository}/issues/{cfg.pr_num}/comments",
+            f"{cfg.api_url}/repos/{cfg.repository}/issues/1/comments",
             headers=GithubApi.Headers.JSON.headers(cfg.token),
             json={"body": f"{MAGIC_COMMENT_IDENTIFIER}{summary}"},
         )
@@ -259,19 +302,20 @@ def test_e2e_diff_existing_comment_same_data(cfg: Settings, data1: bytes, data2:
     summary = format_comment(
         diff(load_packages(TESTFILE_1), load_packages(TESTFILE_2)),
         base_commit_hash="old-sha",
-        target_commit_hash="new-sha",
+        head_commit_hash="new-sha",
     )
 
     with requests_mock.Mocker() as m:
         mock_get_file(m, cfg, data1, cfg.base_ref, resolved_hash="old-sha")
         mock_get_file(m, cfg, data2, cfg.ref, resolved_hash="new-sha")
         mock_resolve_commit_hashes(m, cfg, head_hash="new-sha", base_hash="old-sha")
+        mock_find_pr_for_branch(m, cfg, pr_num="1")
         comments = [
             {"body": "foobar", "id": 1334, "user": {"id": 123}},
             {"body": "foobar", "id": 1335, "user": {"id": 41898282}},
             {"body": f"{MAGIC_COMMENT_IDENTIFIER}{summary}", "id": 1337, "user": {"id": 41898282}},
         ]
-        mock_list_comments(m, cfg, comments)
+        mock_list_comments(m, cfg, comments, pr_num="1")
 
         do_diff(cfg)
 
@@ -280,19 +324,20 @@ def test_e2e_diff_existing_comment_different_data(cfg: Settings, data1: bytes, d
     summary = format_comment(
         diff(load_packages(TESTFILE_1), []),
         base_commit_hash="new-sha",
-        target_commit_hash="old-sha",
+        head_commit_hash="old-sha",
     )
 
     with requests_mock.Mocker() as m:
         mock_get_file(m, cfg, data1, cfg.base_ref, resolved_hash="old-sha")
         mock_get_file(m, cfg, data2, cfg.ref, resolved_hash="new-sha")
         mock_resolve_commit_hashes(m, cfg, head_hash="new-sha", base_hash="old-sha")
+        mock_find_pr_for_branch(m, cfg, pr_num="1")
         comments = [
             {"body": "foobar", "id": 1334, "user": {"id": 123}},
             {"body": "foobar", "id": 1335, "user": {"id": 41898282}},
             {"body": f"{MAGIC_COMMENT_IDENTIFIER}{summary}", "id": 1337, "user": {"id": 41898282}},
         ]
-        mock_list_comments(m, cfg, comments)
+        mock_list_comments(m, cfg, comments, pr_num="1")
         m.patch(
             f"{cfg.api_url}/repos/{cfg.repository}/issues/comments/1337",
             headers=GithubApi.Headers.JSON.headers(cfg.token),
@@ -306,20 +351,21 @@ def test_e2e_diff_commit_lookup_http_failure_falls_back_to_ref(cfg: Settings, da
     summary = format_comment(
         diff(load_packages(TESTFILE_2), load_packages(TESTFILE_1)),
         base_commit_hash=cfg.ref,
-        target_commit_hash=cfg.base_ref,
+        head_commit_hash=cfg.base_ref,
     )
 
     with requests_mock.Mocker() as m:
         mock_get_file(m, cfg, data1, cfg.base_ref)
         mock_get_file(m, cfg, data2, cfg.ref)
+        mock_find_pr_for_branch(m, cfg, pr_num="1")
         m.post(
             f"{cfg.api_url}/graphql",
             request_headers=GithubApi.Headers.JSON.headers(cfg.token),
             status_code=500,
         )
-        mock_list_comments(m, cfg, [])
+        mock_list_comments(m, cfg, [], pr_num="1")
         m.post(
-            f"{cfg.api_url}/repos/{cfg.repository}/issues/{cfg.pr_num}/comments",
+            f"{cfg.api_url}/repos/{cfg.repository}/issues/1/comments",
             headers=GithubApi.Headers.JSON.headers(cfg.token),
             json={"body": f"{MAGIC_COMMENT_IDENTIFIER}{summary}"},
         )
@@ -332,9 +378,18 @@ def load_file(filename: Path) -> bytes:
         return f.read()
 
 
-def mock_list_comments(m: Mocker, s: Settings, response_json: list[dict[Any, Any]]) -> None:
+def mock_find_pr_for_branch(m: Mocker, s: Settings, pr_num: str = "1") -> None:
+    head = f"{s.repository.split('/')[0]}:{s.ref}"
     m.get(
-        f"{s.api_url}/repos/{s.repository}/issues/{s.pr_num}/comments?per_page=100&page=1",
+        f"{s.api_url}/repos/{s.repository}/pulls?head={head}&state=open",
+        request_headers=GithubApi.Headers.JSON.headers(s.token),
+        json=[{"number": int(pr_num)}],
+    )
+
+
+def mock_list_comments(m: Mocker, s: Settings, response_json: list[dict[Any, Any]], pr_num: str = "1") -> None:
+    m.get(
+        f"{s.api_url}/repos/{s.repository}/issues/{pr_num}/comments?per_page=100&page=1",
         request_headers=GithubApi.Headers.JSON.headers(s.token),
         json=response_json,
     )
@@ -377,7 +432,7 @@ def create_settings(
 ) -> Settings:
     return GitHubActionsSettings(
         event_name="pull_request",
-        ref="refs/pull/1/merge",
+        ref="deps-update",
         repository=repository,
         token=token,
         base_ref="main",

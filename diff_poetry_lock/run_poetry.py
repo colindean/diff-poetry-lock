@@ -83,7 +83,7 @@ def post_comment(api: GithubApi, comment: str | None) -> None:
 def format_comment(
     packages: list[PackageSummary],
     base_commit_hash: str | None = None,
-    target_commit_hash: str | None = None,
+    head_commit_hash: str | None = None,
 ) -> str | None:
     added = sorted([p for p in packages if p.added()], key=attrgetter("name"))
     removed = sorted([p for p in packages if p.removed()], key=attrgetter("name"))
@@ -95,8 +95,8 @@ def format_comment(
 
     change_count = len(added + removed + updated)
     comment = f"### Detected {change_count} changes to dependencies in Poetry lockfile\n\n"
-    if base_commit_hash and target_commit_hash:
-        comment += f"From base {base_commit_hash} to target {target_commit_hash}:\n\n"
+    if base_commit_hash and head_commit_hash:
+        comment += f"From base {base_commit_hash} to head {head_commit_hash}:\n\n"
     summary_lines = [p.summary_line() for p in added + removed + updated]
     comment += "\n".join(summary_lines)
     comment += (
@@ -143,11 +143,11 @@ def do_diff(settings: Settings) -> None:
     if not any(package.changed() for package in packages):
         summary = None
     else:
-        target_commit_hash, base_commit_hash = api.resolve_commit_hashes(settings.ref, settings.base_ref)
+        head_commit_hash, base_commit_hash = api.resolve_commit_hashes(settings.ref, settings.base_ref)
         summary = format_comment(
             packages,
             base_commit_hash=base_commit_hash,
-            target_commit_hash=target_commit_hash,
+            head_commit_hash=head_commit_hash,
         )
 
     if summary:
