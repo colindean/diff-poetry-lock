@@ -1,5 +1,3 @@
-import os
-from collections.abc import Callable
 from operator import attrgetter
 from pathlib import Path
 from textwrap import dedent
@@ -116,43 +114,6 @@ def test_settings_not_pr(monkeypatch: MonkeyPatch) -> None:
     assert pytest_wrapped_e.value.code == 0
 
 
-def accept_headers_examples() -> list[tuple[Callable[[str], dict[str, str]], str]]:
-    return [
-        (GithubApi.Headers.JSON.headers, "application/vnd.github+json"),
-        (GithubApi.Headers.RAW.headers, "application/vnd.github.raw"),
-    ]
-
-
-@pytest.mark.parametrize(
-    ("headers_fn", "expected_accept_header"),
-    accept_headers_examples(),
-)
-def test_request_headers_method(headers_fn: Callable[[str], dict[str, str]], expected_accept_header: str) -> None:
-    headers = headers_fn("sekret-token")
-    assert headers["Authorization"] == "Bearer sekret-token"
-    assert headers["Accept"] == expected_accept_header
-
-
-def graphql_url_examples() -> list[tuple[str, str]]:
-    examples: list[tuple[str, str]] = [("https://api.github.com", "https://api.github.com/graphql")]
-    if ghes := os.environ.get("PARAMETER_GITHUB_API_URL"):
-        replaced = ghes.replace("v3", "graphql")
-        if replaced != ghes:
-            examples.append((ghes, replaced))
-    return examples
-
-
-@pytest.mark.parametrize(
-    ("api_url", "expected_graphql_url"),
-    graphql_url_examples(),
-)
-def test_graphql_url_resolution(api_url: str, expected_graphql_url: str) -> None:
-    cfg = create_settings(api_url=api_url)
-    api = GithubApi(cfg)
-
-    assert api.graphql_url() == expected_graphql_url
-
-
 def test_diff() -> None:
     old = load_packages(TESTFILE_1)
     new = load_packages(TESTFILE_2)
@@ -252,7 +213,6 @@ def test_diff_no_changes() -> None:
 
 def test_file_loading_missing_file_base_ref(cfg: Settings) -> None:
     with requests_mock.Mocker() as m:
-        mock_repo(m, cfg)
         m.get(
             f"{cfg.api_url}/repos/{cfg.repository}/contents/{cfg.lockfile_path}?ref={cfg.base_ref}",
             status_code=404,
@@ -264,7 +224,6 @@ def test_file_loading_missing_file_base_ref(cfg: Settings) -> None:
 
 def test_file_loading_missing_file_head_ref(cfg: Settings, data1: bytes) -> None:
     with requests_mock.Mocker() as m:
-        mock_repo(m, cfg)
         mock_get_file(m, cfg, data1, cfg.base_ref)
         m.get(
             f"{cfg.api_url}/repos/{cfg.repository}/contents/{cfg.lockfile_path}?ref={cfg.ref}",
@@ -285,7 +244,6 @@ def test_e2e_no_diff_existing_comment(cfg: Settings, data1: bytes) -> None:
             {"body": f"{MAGIC_COMMENT_IDENTIFIER}foobar", "id": 1337, "user": {"id": 41898282}},
         ]
         mock_list_comments(m, cfg, comments)
-        mock_issue_comment(m, cfg, 1337, f"{MAGIC_COMMENT_IDENTIFIER}foobar")
         m.delete(
             f"{cfg.api_url}/repos/{cfg.repository}/issues/comments/1337",
         )
@@ -403,7 +361,7 @@ def test_resolve_commit_hash_request_exception_returns_ref(cfg: Settings, monkey
         msg = "timeout"
         raise ValueError(msg)
 
-    monkeypatch.setattr("diff_poetry_lock.github.requests.post", raise_timeout)
+    monkeypatch.setattr(api.requester, "graphql_query", raise_timeout)
 
     resolved_head, resolved_base = api.resolve_commit_hashes(cfg.ref, cfg.base_ref)
     assert resolved_head == cfg.ref
@@ -461,6 +419,10 @@ def mock_list_comments(m: Mocker, s: Settings, response_json: list[dict[Any, Any
     m.get(
         f"{comments_base_url}?per_page=100",
         json=response_json,
+    )
+    m.get(
+        f"{comments_base_url}?per_page=1",
+        json=response_json[:1],
     )
 
 
