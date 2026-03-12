@@ -12,7 +12,13 @@ from requests_mock import Mocker
 from diff_poetry_lock import __version__
 from diff_poetry_lock.github import MAGIC_COMMENT_IDENTIFIER, GithubApi
 from diff_poetry_lock.run_poetry import PackageSummary, diff, do_diff, format_comment, load_packages, main
-from diff_poetry_lock.settings import GitHubActionsSettings, PrLookupConfigurable, Settings, VelaSettings
+from diff_poetry_lock.settings import (
+    GitHubActionsSettings,
+    PrLookupConfigurable,
+    PrLookupService,
+    Settings,
+    VelaSettings,
+)
 
 TESTFILE_1 = Path("diff_poetry_lock/test/res/poetry1.lock")
 TESTFILE_2 = Path("diff_poetry_lock/test/res/poetry2.lock")
@@ -31,6 +37,14 @@ def data1() -> bytes:
 @pytest.fixture
 def data2() -> bytes:
     return load_file(TESTFILE_2)
+
+
+@pytest.fixture(autouse=True)
+def patch_pr_lookup_setter(monkeypatch: MonkeyPatch) -> None:
+    def _safe_setter(self: Settings, service: PrLookupService) -> None:
+        object.__setattr__(self, "_pr_lookup_service", service)
+
+    monkeypatch.setattr(Settings, "set_pr_lookup_service", _safe_setter)
 
 
 class _LookupService:

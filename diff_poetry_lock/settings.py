@@ -4,7 +4,7 @@ from abc import ABC
 from typing import Any, ClassVar, Protocol, runtime_checkable
 
 from loguru import logger
-from pydantic import BaseSettings, Field, ValidationError, validator
+from pydantic import BaseSettings, Field, PrivateAttr, ValidationError, validator
 
 
 class PrLookupService(Protocol):
@@ -34,7 +34,7 @@ class Settings(ABC):
     _pr_lookup_service: PrLookupService | None = None
 
     def set_pr_lookup_service(self, service: PrLookupService) -> None:
-        object.__setattr__(self, "_pr_lookup_service", service)
+        self._pr_lookup_service = service
 
     _pr_num_cached: str = ""
 
@@ -64,6 +64,8 @@ class Settings(ABC):
 
 class VelaSettings(BaseSettings, Settings):
     sigil_envvar: ClassVar[str] = "VELA_REPO_FULL_NAME"
+    _pr_lookup_service: PrLookupService | None = PrivateAttr(default=None)
+    _pr_num_cached: str = PrivateAttr(default="")
 
     # from CI
     event_name: str = Field(env="VELA_BUILD_EVENT")
@@ -90,6 +92,8 @@ class VelaSettings(BaseSettings, Settings):
 
 class GitHubActionsSettings(BaseSettings, Settings):
     sigil_envvar: ClassVar[str] = "github_repository"
+    _pr_lookup_service: PrLookupService | None = PrivateAttr(default=None)
+    _pr_num_cached: str = PrivateAttr(default="")
 
     # from CI
     event_name: str = Field(env="github_event_name")  # must be 'pull_request'
