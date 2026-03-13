@@ -14,7 +14,7 @@ from diff_poetry_lock.settings import Settings, determine_and_load_settings
 
 
 def load_packages(filename: Path = Path("poetry.lock")) -> list[Package]:
-    l_merged = Locker(Path(filename), pyproject_data={})
+    l_merged = Locker(Path(filename), {})
     return l_merged.locked_repository().packages
 
 
