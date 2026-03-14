@@ -14,7 +14,6 @@ from diff_poetry_lock.run_poetry import PackageSummary, diff, do_diff, format_co
 from diff_poetry_lock.settings import (
     GitHubActionsSettings,
     PrLookupConfigurable,
-    PrLookupService,
     Settings,
     VelaSettings,
 )
@@ -38,14 +37,6 @@ def data2() -> bytes:
     return load_file(TESTFILE_2)
 
 
-@pytest.fixture(autouse=True)
-def patch_pr_lookup_setter(monkeypatch: MonkeyPatch) -> None:
-    def _safe_setter(self: Settings, service: PrLookupService) -> None:
-        object.__setattr__(self, "_pr_lookup_service", service)
-
-    monkeypatch.setattr(Settings, "set_pr_lookup_service", _safe_setter)
-
-
 class _LookupService:
     def __init__(self, settings: Settings) -> None:
         self.s = settings
@@ -62,20 +53,18 @@ class _LookupService:
 
 def test_settings(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
-    monkeypatch.setenv("GITHUB_HEAD_REF", "refs/heads/github-actions")
+    monkeypatch.setenv("GITHUB_REF", "refs/pull/42/merge")
+    monkeypatch.setenv("GITHUB_HEAD_REF", "use-github-package")
     monkeypatch.setenv("GITHUB_REPOSITORY", "account/repo")
     monkeypatch.setenv("INPUT_GITHUB_TOKEN", "foobar")
     monkeypatch.setenv("GITHUB_BASE_REF", "main")
 
     s = GitHubActionsSettings()
     assert s.event_name == "pull_request"
-    assert s.ref == "refs/heads/github-actions"
+    assert s.ref == "refs/pull/42/merge"
+    assert s.head_ref == "use-github-package"
     assert s.repository == "account/repo"
     assert s.base_ref == "main"
-    assert s.pr_num is None
-
-    _LookupService(s)
-
     assert s.pr_num == "42"
 
 
@@ -102,6 +91,7 @@ def test_vela_settings(monkeypatch: MonkeyPatch) -> None:
 
 def test_settings_not_pr(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("GITHUB_EVENT_NAME", "push")
+    monkeypatch.setenv("GITHUB_REF", "refs/heads/deps-update")
     monkeypatch.setenv("GITHUB_HEAD_REF", "deps-update")
     monkeypatch.setenv("GITHUB_REPOSITORY", "account/repo")
     monkeypatch.setenv("INPUT_GITHUB_TOKEN", "foobar")
@@ -501,7 +491,8 @@ def create_settings(
 ) -> Settings:
     return GitHubActionsSettings(
         event_name="pull_request",
-        ref="deps-update",
+        ref="refs/pull/1/merge",
+        head_ref="refs/heads/deps-update",
         repository=repository,
         token=token,
         base_ref="main",
