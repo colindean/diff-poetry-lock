@@ -20,8 +20,10 @@ class Settings(ABC):
     # from CI
     event_name: str
     ref: str
+    head_ref: str
     repository: str
     base_ref: str
+    pr_num: str | None
 
     # from step config including secrets
     token: str
@@ -30,31 +32,6 @@ class Settings(ABC):
 
     sigil_envvar: ClassVar[str]
     """The envvar in this will always be present when this settings is valid."""
-
-    _pr_lookup_service: PrLookupService | None = None
-
-    def set_pr_lookup_service(self, service: PrLookupService) -> None:
-        self._pr_lookup_service = service
-
-    _pr_num_cached: str = ""
-
-    @property
-    def pr_num(self) -> str | None:
-        if self._pr_num_cached:
-            return self._pr_num_cached
-
-        if self._pr_lookup_service is None:
-            logger.warning("PR lookup requested before service configured; returning None")
-            return None
-
-        logger.debug("Settings.pr_num looking up PR for branch {}", self.ref)
-        pr_num = self._pr_lookup_service.find_pr_for_branch(self.ref)
-        object.__setattr__(self, "_pr_num_cached", pr_num)
-        if pr_num:
-            logger.debug("Settings.pr_num found PR #{}", pr_num)
-        else:
-            logger.warning("Settings.pr_num found no open PR")
-        return pr_num
 
     @classmethod
     def matches_env(cls, env: dict[str, str]) -> bool:
@@ -69,7 +46,8 @@ class VelaSettings(BaseSettings, Settings):
 
     # from CI
     event_name: str = Field(env="VELA_BUILD_EVENT")
-    ref: str = Field(env="VELA_BUILD_REF")
+    head_ref: str = Field(env="VELA_BUILD_REF")
+    ref: str = head_ref
     repository: str = Field(env="VELA_REPO_FULL_NAME")
     base_ref: str = Field(default="", env=None)  # Calculated from VELA_REPO_BRANCH in __init__
 
@@ -89,6 +67,27 @@ class VelaSettings(BaseSettings, Settings):
         logger.debug("VelaSettings ref={}", self.ref)
         logger.debug("VelaSettings event_name={}", self.event_name)
 
+    def set_pr_lookup_service(self, service: PrLookupService) -> None:
+        self._pr_lookup_service = service
+
+    @property
+    def pr_num(self) -> str | None:  # type: ignore[override]
+        if self._pr_num_cached:
+            return self._pr_num_cached
+
+        if self._pr_lookup_service is None:
+            logger.warning("PR lookup requested before service configured; returning None")
+            return None
+
+        logger.debug("VelaSettings.pr_num looking up PR for branch {}", self.ref)
+        pr_num = self._pr_lookup_service.find_pr_for_branch(self.ref)
+        self._pr_num_cached = pr_num
+        if pr_num:
+            logger.debug("VelaSettings.pr_num found PR #{}", pr_num)
+        else:
+            logger.warning("VelaSettings.pr_num found no open PR")
+        return pr_num
+
 
 class GitHubActionsSettings(BaseSettings, Settings):
     sigil_envvar: ClassVar[str] = "github_repository"
@@ -97,9 +96,10 @@ class GitHubActionsSettings(BaseSettings, Settings):
 
     # from CI
     event_name: str = Field(env="github_event_name")  # must be 'pull_request'
-    ref: str = Field(env="github_head_ref")
+    ref: str = Field(env="github_ref")
     repository: str = Field(env="github_repository")
     base_ref: str = Field(env="github_base_ref")
+    head_ref: str = Field(env="github_head_ref")
 
     # from step config including secrets
     token: str = Field(env="input_github_token")
@@ -124,6 +124,12 @@ class GitHubActionsSettings(BaseSettings, Settings):
             msg = f"This Github Action can only run in the context of events {allowed_events}."
             raise ValueError(msg)
         return v
+
+    @property
+    # todo: Avoid this MyPy error by having Pydantic compute the field
+    def pr_num(self) -> str | None:  # type: ignore[override]
+        # TODO: Validate early
+        return self.ref.split("/")[2]
 
 
 _CI_SETTINGS_CANDIDATES: list[type[Settings]] = [GitHubActionsSettings, VelaSettings]
