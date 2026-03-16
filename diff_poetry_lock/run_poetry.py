@@ -14,7 +14,7 @@ from diff_poetry_lock.settings import Settings, determine_and_load_settings
 
 
 def load_packages(filename: Path = Path("poetry.lock")) -> list[Package]:
-    l_merged = Locker(Path(filename), pyproject_data={})
+    l_merged = Locker(Path(filename), {})
     return l_merged.locked_repository().packages
 
 
@@ -143,7 +143,7 @@ def do_diff(settings: Settings) -> None:
     if not any(package.changed() for package in packages):
         summary = None
     else:
-        head_commit_hash, base_commit_hash = api.resolve_commit_hashes(settings.ref, settings.base_ref)
+        head_commit_hash, base_commit_hash = api.resolve_commit_hashes(settings.head_ref, settings.base_ref)
         summary = format_comment(
             packages,
             base_commit_hash=base_commit_hash,
