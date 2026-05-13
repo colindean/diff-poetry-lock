@@ -4,7 +4,7 @@ from abc import ABC
 from typing import Any, ClassVar, Protocol, runtime_checkable
 
 from loguru import logger
-from pydantic import BaseSettings, Field, PrivateAttr, ValidationError, validator
+from pydantic import BaseSettings, Field, PrivateAttr, SecretStr, ValidationError, validator
 
 
 class PrLookupService(Protocol):
@@ -55,7 +55,7 @@ class VelaSettings(BaseSettings, Settings):
     repo_branch: str = Field(env="VELA_REPO_BRANCH")
 
     # from step config including secrets
-    token: str = Field(env="PARAMETER_GITHUB_TOKEN")
+    token: SecretStr = Field(env="PARAMETER_GITHUB_TOKEN")
     lockfile_path: str = Field(env="PARAMETER_LOCKFILE_PATH", default="poetry.lock")
     api_url: str = Field(env="PARAMETER_GITHUB_API_URL", default="https://api.github.com")
 
@@ -102,7 +102,7 @@ class GitHubActionsSettings(BaseSettings, Settings):
     head_ref: str = Field(env="github_head_ref")
 
     # from step config including secrets
-    token: str = Field(env="input_github_token")
+    token: SecretStr = Field(env="input_github_token")
     lockfile_path: str = Field(env="input_lockfile_path", default="poetry.lock")
     api_url: str = Field(env="github_api_url", default="https://api.github.com")
 
